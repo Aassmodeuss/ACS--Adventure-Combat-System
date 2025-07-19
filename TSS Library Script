@@ -39,7 +39,7 @@ function onInput_TSS(text) {
   //Check for locking
   text = lockScript(text);
 
-  text = helpCommandInput_TSS(text);
+ helpCommandInput_TSS(text);
 
   //Unlocking runs main()
   if (state.startScript == true && info.actionCount >= 0) {
@@ -3439,21 +3439,17 @@ function warnPlayerHealth(text){
 state.lasrifleStats = state.lasrifleStats || {
 
   hp: 0,
-  mp: 0,
   ammo: 0,
-  ratk: 0,
 
   
 
   maxHp: 100,
-  maxMp: 100,
   maxAmmo: 50,
-  maxRatk: 10,
 
 };
 
-lrmaxStatKeys = ["maxLvl", "maxHp", "maxAmmo", "maxRatk",];
-lrStatKeys = ["lvl", "hp", "ammo", "ratk",];
+lrmaxStatKeys = ["maxHp", "maxAmmo",];
+lrStatKeys = ["hp", "ammo",];
 
 
 //NOTE: Players stats will be stored in a sc. CREATE initial stats. RETRIEVE from or STORE to player stats: SC -> <- state.lasriflestats
@@ -3537,7 +3533,6 @@ function retrieveLasRifleFromSC(){
     //lvl: 'maxLvl',
     hp: 'maxHp',
     ammo: 'maxAmmo',
-    ratk: 'maxRatk',
     
   };
   
@@ -5243,9 +5238,8 @@ function detectRattack(text){
 
   if(startRangedAttack){
     // Get the player's ranged attack and speed stats
-    plrRatk = state.lasrifleStats.ratk;
-    plrSpd = state.lasrifleStats.spd;
-
+    plrAtk = state.playerStats.ratk;
+    plrSpd = state.playerStats.spd;
     // Define ranged attack strength ranges with corresponding ranged attack messages
     const ratkRanges = [
       { min: 0, max: 10, ratk: rangedattackTier1 },
