@@ -1,0 +1,11 @@
+
+// TSS Input Script
+
+const modifier = (text) => { 
+  text = onInput_TSS(text);
+
+  return { text }
+}//end of modifier
+
+// Don't modify this part
+modifier(text)
