@@ -2458,6 +2458,7 @@ const raceMods = {
     mpMod: 0,
     epMod: 0,
     atkMod: 0,
+    ratkMod: 0,
     defMod: 0,
     spdMod: 0,
     lckMod: 0,
@@ -2469,6 +2470,7 @@ const raceMods = {
     mpMod: -10,
     epMod: -5,
     atkMod: 5,
+    ratkMod: 5,
     defMod: 15,
     spdMod: -5,
     lckMod: -5,
@@ -2480,6 +2482,7 @@ const raceMods = {
     mpMod: -5,
     epMod: 10,
     atkMod: 10,
+    ratkMod: 0,
     defMod: 0,
     spdMod: 10,
     lckMod: 0,
@@ -2491,6 +2494,7 @@ const raceMods = {
     mpMod: 20,
     epMod: 0,
     atkMod: -5,
+    ratkMod: 10,
     defMod: 0,
     spdMod: 5,
     lckMod: 10,
@@ -2502,6 +2506,7 @@ const raceMods = {
     mpMod: -10,
     epMod: 5,
     atkMod: 20,
+    ratkMod: 0,
     defMod: 10,
     spdMod: -10,
     lckMod: -10,
@@ -2513,6 +2518,7 @@ const raceMods = {
     mpMod: -5,
     epMod: 5,
     atkMod: 10,
+    ratkMod: 0,
     defMod: 5,
     spdMod: 0,
     lckMod: 0,
@@ -2524,6 +2530,7 @@ const raceMods = {
     mpMod: 0,
     epMod: 0,
     atkMod: -5,
+    ratkMod: 10,
     defMod: -10,
     spdMod: 15,
     lckMod: 10,
@@ -2535,6 +2542,7 @@ const raceMods = {
     mpMod: 10,
     epMod: 10,
     atkMod: 10,
+    ratkMod: 0,
     defMod: 0,
     spdMod: 5,
     lckMod: 5,
@@ -2546,6 +2554,7 @@ const raceMods = {
     mpMod: 15,
     epMod: 5,
     atkMod: 10,
+    ratkMod: 0,
     defMod: -5,
     spdMod: 10,
     lckMod: 10,
@@ -2557,6 +2566,7 @@ const raceMods = {
     mpMod: 20,
     epMod: 10,
     atkMod: -10,
+    ratkMod: 5,
     defMod: -5,
     spdMod: 15,
     lckMod: 10,
@@ -2568,6 +2578,7 @@ const raceMods = {
     mpMod: 20,
     epMod: 20,
     atkMod: 20,
+    ratkMod: 20,
     defMod: 20,
     spdMod: 20,
     lckMod: 20,
@@ -2579,6 +2590,7 @@ const raceMods = {
     mpMod: 10,
     epMod: 0,
     atkMod: 5,
+    ratkMod: 0,
     defMod: 0,
     spdMod: 10,
     lckMod: 15,
@@ -2590,6 +2602,7 @@ const raceMods = {
     mpMod: 5,
     epMod: 5,
     atkMod: 20,
+    ratkMod: 10,
     defMod: 15,
     spdMod: -10,
     lckMod: -5,
@@ -2601,6 +2614,7 @@ const raceMods = {
     mpMod: -10,
     epMod: -5,
     atkMod: 5,
+    ratkMod: -10,
     defMod: 10,
     spdMod: -10,
     lckMod: -15,
@@ -2612,6 +2626,7 @@ const raceMods = {
     mpMod: 0,
     epMod: 5,
     atkMod: 5,
+    ratkMod: 0,
     defMod: 5,
     spdMod: 15,
     lckMod: -5,
@@ -2623,6 +2638,7 @@ const raceMods = {
     mpMod: 15,
     epMod: 10,
     atkMod: 5,
+    ratkMod: 0,
     defMod: 5,
     spdMod: 5,
     lckMod: 10,
@@ -2634,6 +2650,7 @@ const raceMods = {
     mpMod: 5,
     epMod: 10,
     atkMod: 15,
+    ratkMod: 10,
     defMod: 5,
     spdMod: 5,
     lckMod: -5,
@@ -2645,6 +2662,7 @@ const raceMods = {
     mpMod: 10,
     epMod: 10,
     atkMod: 10,
+    ratkMod: 10,
     defMod: 10,
     spdMod: 10,
     lckMod: 0,
@@ -2656,6 +2674,7 @@ const raceMods = {
     mpMod: 5,
     epMod: 5,
     atkMod: -5,
+    ratkMod: -10,
     defMod: 10,
     spdMod: -5,
     lckMod: 0,
@@ -2667,6 +2686,7 @@ const raceMods = {
     mpMod: 0,
     epMod: 10,
     atkMod: 0,
+    ratkMod: 0,
     defMod: -5,
     spdMod: 20,
     lckMod: 5,
@@ -2678,6 +2698,7 @@ const raceMods = {
     mpMod: 20,
     epMod: 0,
     atkMod: -5,
+    ratkMod: 0,
     defMod: 0,
     spdMod: -5,
     lckMod: 10,
@@ -2689,6 +2710,7 @@ const raceMods = {
     mpMod: -10,
     epMod: 10,
     atkMod: 15,
+    ratkMod: 0,
     defMod: 0,
     spdMod: 5,
     lckMod: -5,
@@ -2701,6 +2723,7 @@ const raceMods = {
     mpMod: 10,
     epMod: -10,
     atkMod: 0,
+    ratkMod: 0,
     defMod: 10,
     spdMod: -10,
     lckMod: -5,
@@ -2713,6 +2736,7 @@ const raceMods = {
     mpMod: 10,
     epMod: 0,
     atkMod: 0,
+    ratkMod: 0,
     defMod: 0,
     spdMod: 5,
     lckMod: 10,
@@ -2725,6 +2749,7 @@ const raceMods = {
     mpMod: 0,
     epMod: 10,
     atkMod: 5,
+    ratkMod: 0,
     defMod: 0,
     spdMod: 10,
     lckMod: 0,
@@ -2737,6 +2762,7 @@ const raceMods = {
     mpMod: 20,
     epMod: 0,
     atkMod: 0,
+    ratkMod: 0,
     defMod: 0,
     spdMod: 5,
     lckMod: 5,
@@ -2749,6 +2775,7 @@ const raceMods = {
     mpMod: 0,
     epMod: 10,
     atkMod: 10,
+    ratkMod: 0,
     defMod: 10,
     spdMod: 0,
     lckMod: -5,
@@ -2761,6 +2788,7 @@ const raceMods = {
     mpMod: 0,
     epMod: 10,
     atkMod: 0,
+    ratkMod: 0,
     defMod: -5,
     spdMod: 15,
     lckMod: 10,
@@ -2773,6 +2801,7 @@ const raceMods = {
     mpMod: 5,
     epMod: -5,
     atkMod: -5,
+    ratkMod: 0,
     defMod: 0,
     spdMod: -10,
     lckMod: 10,
@@ -2785,6 +2814,7 @@ const raceMods = {
     mpMod: -10,
     epMod: 10,
     atkMod: 15,
+    ratkMod: 0,
     defMod: 5,
     spdMod: -10,
     lckMod: -5,
@@ -2797,6 +2827,7 @@ const raceMods = {
     mpMod: 0,
     epMod: 15,
     atkMod: 15,
+    ratkMod: 0,
     defMod: 10,
     spdMod: 5,
     lckMod: -5,
@@ -2809,6 +2840,7 @@ const raceMods = {
     mpMod: -20,
     epMod: 5,
     atkMod: 20,
+    ratkMod: 0,
     defMod: 15,
     spdMod: -15,
     lckMod: -10,
@@ -2821,6 +2853,7 @@ const raceMods = {
     mpMod: -10,
     epMod: 10,
     atkMod: 10,
+    ratkMod: 0,
     defMod: 20,
     spdMod: -10,
     lckMod: 0,
@@ -2833,6 +2866,7 @@ const raceMods = {
     mpMod: 10,
     epMod: 0,
     atkMod: -5,
+    ratkMod: 0,
     defMod: 0,
     spdMod: 10,
     lckMod: 15,
@@ -2845,6 +2879,7 @@ const raceMods = {
     mpMod: 20,
     epMod: 5,
     atkMod: 10,
+    ratkMod: 0,
     defMod: 0,
     spdMod: 5,
     lckMod: 5,
@@ -2857,6 +2892,7 @@ const raceMods = {
     mpMod: 10,
     epMod: 5,
     atkMod: 0,
+    ratkMod: 0,
     defMod: 0,
     spdMod: 10,
     lckMod: 5,
@@ -2869,6 +2905,7 @@ const raceMods = {
     mpMod: 5,
     epMod: 10,
     atkMod: -5,
+    ratkMod: 0,
     defMod: -5,
     spdMod: 20,
     lckMod: 5,
@@ -2881,6 +2918,7 @@ const raceMods = {
     mpMod: -10,
     epMod: 0,
     atkMod: 15,
+    ratkMod: 0,
     defMod: 10,
     spdMod: -5,
     lckMod: -10,
@@ -2893,6 +2931,7 @@ const raceMods = {
     mpMod: -15,
     epMod: 15,
     atkMod: 20,
+    ratkMod: 0,
     defMod: 15,
     spdMod: -10,
     lckMod: -10,
@@ -3218,9 +3257,13 @@ function statUp(statName,incAmt){
 
     // Fetch the "Player Stats" card and log stat changes in description
     const statSC = storyCards.find(sc => sc.title === "Player Stats");
+
     if (incAmt >= 0) { sign = "⬆️" }
     if (incAmt < 0) { sign = "🔻" }
+
     statSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]} (Modded: ${incAmt}, Raw: ${preModIncAmt})\n` + statSC.description;
+
+    state.msgHolder = state.msgHolder + `${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]}\n`;
   }
   else{
     //Formula which decreases value of exp the higher your level and gets the new stat value after exp gain. (stat + incAmt*PercentReduction)
@@ -3251,9 +3294,13 @@ function statUp(statName,incAmt){
 
     // Fetch the "Player Stats" card and log stat changes in description
     const statSC = storyCards.find(sc => sc.title === "Player Stats");
+
     if (incAmt >= 0) { sign = "⬆️" }
     if (incAmt < 0) { sign = "🔻" }
+
     statSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]} (Scaled: ${scaledIncAmt}, Modded: ${incAmt}, Raw: ${preModIncAmt})\n` + statSC.description;
+
+    state.msgHolder = state.msgHolder + `${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]}\n`;
 
     //If there is positive stat overflow, pass it to player EXP
     if(overflow > 0){
@@ -3285,9 +3332,11 @@ function statUp(statName,incAmt){
         state.playerStats.exp = 0 + leftoverExp;
         state.playerStats.exp = Math.round(state.playerStats.exp * 100) / 100;
 
-        // Fetch the "Player Stats" card and leave update in description
+        // Fetch the "Player Stats" card and leave log in description
         const statSC = storyCards.find(sc => sc.title === "Player Stats");
         statSC.description = `Log ${state.turnCount} | LVL ${level} → ${state.playerStats.maxLvl}\n` + statSC.description;
+
+        state.msgHolder = state.msgHolder + `LVL ${level} → ${state.playerStats.maxLvl}\n`;
 
         // Since player has leveled up, increase all max stats
         maxStatKeys.forEach((key) => {
@@ -3356,25 +3405,29 @@ function warnPlayerHealth(text){
   //Player Death at 0%
   if(plrHealth <= 0 && state.inputCount % 2 === 0){
     text = text + ` Suddenly, ${healthDeathArray[randomInt(0,healthDeathArray.length-1)]} The world continues without you.`;
+
+    state.msgHolder = state.msgHolder + `GAME OVER. You died!\n`;
   }
 
 
   //Warns every 5 input, at 50% energy
   if((plrEnergy/plrMaxEnergy) >= 0.45 && (plrEnergy/plrMaxEnergy) <= 0.50 && state.inputCount % numTurnsDisplay === 0){
     text = text + ` ${realizePhrases[randomInt(0,realizePhrases.length-1)]} ${halfEnergyArray[randomInt(0,halfEnergyArray.length-1)]}`;
-    
   }
   //Warns at 1% to 10% energy
   else if((plrEnergy/plrMaxEnergy) >= 0.01 && (plrEnergy/plrMaxEnergy) <= 0.10 && state.inputCount % numTurnsDisplay === 0){
     text = text + ` ${realizePhrases[randomInt(0,realizePhrases.length-1)]} ${exhaustedArray[randomInt(0,exhaustedArray.length-1)]}`;
+
+    state.msgHolder = state.msgHolder + `Your energy is very low. You may want to rest or eat.\n`
 
   }
   
   //No energy at 0%
   if(plrEnergy <= 0 && state.inputCount % 5 === 0){
     text = text + ` Suddenly, ${exhaustionSleepArray[randomInt(0,exhaustionSleepArray.length-1)]}`; 
-  }
 
+    state.msgHolder = state.msgHolder + `You have no energy! Recover by consuming or sleeping.\n`
+  }
 
   return text;
 }
@@ -3666,14 +3719,14 @@ function statUp(statName,incAmt){
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-//Initialize player inventory
+// Initialize player inventory
 state.playerInv = state.playerInv || {
   item: [],
   amt: []
 };
 console.log("Player Inventory: " + state.playerInv.item + "\n" + state.playerInv.amt);
 
-//CREATE new sc with player inv if sc doesnt exist
+// CREATE new sc with player inv if sc doesnt exist
 function createIfNoInvSC(){
   if (!storyCards.find(sc => sc.title === "Player Inventory")) {
     // If "Player Inventory" card doesn't exist, create it
@@ -3686,22 +3739,29 @@ function createIfNoInvSC(){
   }
 }
 
-//STORE inv to sc
+// STORE inv to sc
 function storeInvToSC(){
   // Fetch the "Player Inventory" card
   const invSC = storyCards.find(sc => sc.title === "Player Inventory");
 
-  //Format and display to sc
+  // Format and display to sc
   invSC.entry = state.playerInv.item.map((item, index) => `${item} (Amt: ${state.playerInv.amt[index]})`).join("\n");
-  return true;
+
+  // Trim notes on char limit to prevent memory overfill
+  if (invSC.description.length > 3000) {
+    halfIndex = Math.floor(invSC.description.length / 2);
+    invSC.description = invSC.description.slice(0, halfIndex);
+
+    console.log("Trimming invSC description to prevent memory overload.");
+  }
 }
 
-//RETRIEVE inv data from sc
+// RETRIEVE inv data from sc
 function retrieveInvFromSC(){
   // Fetch the "Player Inventory" card
   const invSC = storyCards.find(sc => sc.title === "Player Inventory");
 
-  //get inv sc entry
+  // Get inv sc entry
   fromInvSC = invSC.entry;
   log("fromInvSC: " + fromInvSC);
 
@@ -3715,81 +3775,87 @@ function retrieveInvFromSC(){
     amtHold.push(Number(match[2])); // Extract amount as integer to holder2
   }
 
-  //Store retrieved data to codebase 
+  // Store retrieved data to codebase 
   state.playerInv.item = itemHold;
   state.playerInv.amt = amtHold;
   //console.log("Items:", state.playerInv.item);
   //console.log("Amounts:", state.playerInv.amt);
 }
 
-//Detect when the player stores item and amt to their inventory
-function detectStoreInv(text){
+// Detect when the player stores item and amt to their inventory
+function detectStoreInv(text) {
+  // Initialize condition var
   startEquip = false;
 
   // Verify player is not dialoguing (case-insensitive)
   dialogueCheck = true;
   textLower = text.toLowerCase();
   dialoguePhrases.forEach(phrase => {
-    if(textLower.includes(phrase.toLowerCase())){
+     if (textLower.includes(phrase.toLowerCase())) {
       // Disable check dialoguing exists
       dialogueCheck = false;
     }
   });
 
-  //If not a dialogue, check for inventory words in input then split text into words arr
-  if(dialogueCheck == true){
+  // If not a dialogue, check for inventory words in input then split text into words arr
+  if (dialogueCheck == true) {
     equipTextInput = [];
-    equipTextInput = findTargetsThenSplit(text,invWords,equipTextInput,true);
+    newText = wordsToNumber(text);
+    equipTextInput = findTargetsThenSplit(newText, invWords, equipTextInput, true);
     //equipTextInput = findTargetsThenSplit(text,equipWords,equipTextInput,true);
     console.log("equipTextInput: " + equipTextInput);
   
 
-    //If there are inventory words, check for "you equip" in words arr using indices
-    if(equipTextInput != null){
+    // If there are inventory words, check for "you equip" in words arr using indices
+    if (equipTextInput != null) {
       //Get indices of all equip words in words arr
       allEquipWordIndices = [];
-      allEquipWordIndices = indicesOfTargets(equipTextInput,equipWords);
+      allEquipWordIndices = indicesOfTargets(equipTextInput, equipWords);
       log("allEquipWordIndices: " + allEquipWordIndices);
     
 
-      //If "you" is found within x indices of equip words, start equip process
-      if(allEquipWordIndices != null){
-        startEquip = checkYouBeforeIndicesArr(equipTextInput,allEquipWordIndices,3) || checkAndBeforeIndicesArr(equipTextInput,allEquipWordIndices,2);
+      // If "you" is found within x indices of equip words, start equip process
+      if (allEquipWordIndices != null) {
+        startEquip = checkYouBeforeIndicesArr(equipTextInput, allEquipWordIndices, 3) || checkAndBeforeIndicesArr(equipTextInput, allEquipWordIndices, 2);
         log("startEquip:" + startEquip); 
       }
     }
   }
 
-  //Start equip process when "you equip + inventory" is found in words arr
-  if(startEquip == true){
-    //Create an arr to store filtered words
-    likelyItemNames = equipTextInput;
+  // Start equip process when "you equip + inventory" is found in words arr
+  if (startEquip == true) {
+    // Initialize arrays for potential items from filtered input
+    potentialItem = {
+      tokens: [],
+      indices: [],
+      weights: []
+    };
 
-    //Filter words that arent likely item names
-    likelyItemNames = equipTextInput.filter(word => 
-    ![...stopWords, ...equipWords,...talentWords,...dodgeWords,...castWords,...learnWords,...invWords,...numWords,...youWords,...selfWords,...consumeWords,...titleWords].some(fromArr => fromArr.toLowerCase() === word.toLowerCase())
+    // Filter out words that arent potential items
+    potentialItem.tokens = equipTextInput.filter(word =>
+      ![...stopWords, ...equipWords, ...talentWords, ...dodgeWords, ...castWords, ...learnWords, ...invWords, ...numWords, ...youWords, ...selfWords, ...consumeWords, ...titleWords].some(fromArr => fromArr.toLowerCase() === word.toLowerCase())
     );
-    console.log("likelyItemNames: " + likelyItemNames);
+    potentialItem.tokens = potentialItem.tokens.filter(word => !/^\d+$/.test(word));
+    console.log("potentialItem.tokens: " + potentialItem.tokens);
 
-    //If filtering didnt empty the words arr, start computing text item probability using weights
-    if(likelyItemNames.length > 0){
-      //Get likely item names indices/location from player text
-      indicesLikelyItem = indicesOfTargets(equipTextInput,likelyItemNames);
+    if (potentialItem.tokens.length > 0) {
+      // Get potential item indices from unfiltered input text
+      potentialItem.indices = indicesOfTargets(equipTextInput, potentialItem.tokens);
 
-      //remove duplicate indices
-      indicesLikelyItem = [...new Set(indicesLikelyItem)];
-      log("indicesLikelyItem: " + indicesLikelyItem);
+      // Remove duplicate indices
+      potentialItem.indices = [...new Set(potentialItem.indices)];
+      log("potentialItem.indices: " + potentialItem.indices);
 
-      //Initialize weight array to hold 0 for the length of likelyitemnames because both arr are related
-      itemNameWeights = [];
-      indicesLikelyItem.forEach(word => {itemNameWeights.push(0);});
-      //log("itemNameWeights: " + itemNameWeights);
+      // Initialize weight array to hold 0 for each potential item token
+      potentialItem.weights = [];
+      potentialItem.indices.forEach(word => { potentialItem.weights.push(0); });
+      //log("potentialItem.weights: " + potentialItem.weights);
 
-      //get all indices of biased words in text, set to [] if null to avoid errors
+      // Get all indices of biased words in text, set to [] if null to avoid errors
       allEquipWordIndices = allEquipWordIndices || [];
       invWordIndices = indicesOfTargets(equipTextInput, invWords) || [];
-      numIndices = indicesOfTargets(equipTextInput, numWords) || [];
-      fromIndices = indicesOf(equipTextInput,"from") || [];
+      numIndices = getDigitIndices(equipTextInput) || [];
+      fromIndices = indicesOf(equipTextInput, "from") || [];
       theIndices = indicesOf(equipTextInput, "the") || [];
       aIndices = indicesOf(equipTextInput, "a") || [];
       anIndices = indicesOf(equipTextInput, "an") || [];
@@ -3799,138 +3865,183 @@ function detectStoreInv(text){
       andIndices = indicesOf(equipTextInput, "and") || [];
       itIndices = indicesOf(equipTextInput, "it") || [];
       itsIndices = indicesOf(equipTextInput, "its") || [];
-      themIndices = indicesOf(equipTextInput,"them") || [];
+      themIndices = indicesOf(equipTextInput, "them") || [];
+      thatIndices = indicesOf(equipTextInput, "that") || [];
+      thenIndices = indicesOf(equipTextInput, "then") || [];
 
-      //Take each likelyItem and weigh them using conditions to deduce actual item, the indices can be used to compare distance in the plr sentence
-
-      //If item is after an equip word (Ex: You place sword)
+      // Weigh each token based on distance before or after biased words
+      // If token is near an "equip word"
       if (allEquipWordIndices.length > 0) {
-        isAfterIndex(indicesLikelyItem, allEquipWordIndices, 0, 3, 2, itemNameWeights);
-        isAfterIndex(indicesLikelyItem, allEquipWordIndices, 4, 5, 1.5, itemNameWeights);
-        isAfterIndex(indicesLikelyItem, allEquipWordIndices, 6, 10, 0.5, itemNameWeights);
+        // Ex: You place sword
+        isAfterIndex(potentialItem.indices, allEquipWordIndices, 0, 3, 2.5, potentialItem.weights);
+        isAfterIndex(potentialItem.indices, allEquipWordIndices, 4, 5, 1.5, potentialItem.weights);
+        isAfterIndex(potentialItem.indices, allEquipWordIndices, 6, 10, 0.5, potentialItem.weights);
       }
 
-      //If item is before an inventory word
+      // If token is near an "inventory word"
       if (invWordIndices.length > 0) {
-        //first 2 words before inv likely "in your" bag
-        isBeforeIndex(indicesLikelyItem, invWordIndices, 0, 2, 0.5, itemNameWeights);
-        isBeforeIndex(indicesLikelyItem, invWordIndices, 2, 4, 2, itemNameWeights);
-        isBeforeIndex(indicesLikelyItem, invWordIndices, 5, 6, 1.5, itemNameWeights);
-
+        // First 2 words before inv likely "in your" bag (Ex: ...sword in your bag)
+        isBeforeIndex(potentialItem.indices, invWordIndices, 0, 2, -2.5, potentialItem.weights);
+        isBeforeIndex(potentialItem.indices, invWordIndices, 2, 4, 2, potentialItem.weights);
+        isBeforeIndex(potentialItem.indices, invWordIndices, 5, 6, 1.5, potentialItem.weights);
       }
 
-      //If item is after number
+      // If token is near "number"
       if (numIndices.length > 0) {
-        isAfterIndex(indicesLikelyItem, numIndices, 0, 5, 2, itemNameWeights);
+        // Ex: take 1 sword
+        isAfterIndex(potentialItem.indices, numIndices, 0, 3, 2.5, potentialItem.weights);
       }
 
-      //If item is after the
+      // If token is near "the" 
       if (theIndices.length > 0) {
-        isAfterIndex(indicesLikelyItem, theIndices, 0, 4, 2, itemNameWeights);
+        // Ex: take the sword
+        isAfterIndex(potentialItem.indices, theIndices, 0, 4, 2.5, potentialItem.weights);
       }
-      //If item is before from
-      if(fromIndices.length > 0){
-        isBeforeIndex(indicesLikelyItem,fromIndices, 0, 2, 1, itemNameWeights);
-        isBeforeIndex(indicesLikelyItem,fromIndices, 3, 4, 0.5, itemNameWeights);
+
+      // If token is near "from"
+      if (fromIndices.length > 0) {
+        // Ex: take sword from
+        isBeforeIndex(potentialItem.indices, fromIndices, 0, 2, 1, potentialItem.weights);
+        isBeforeIndex(potentialItem.indices, fromIndices, 3, 4, 0.5, potentialItem.weights);
+
+        isAfterIndex(potentialItem.indices, fromIndices, 0, 3, -2, potentialItem.weights);
 
       }
-      //If item is after a or an
+      // If token is near "a/an"
       if (aIndices.length > 0 || anIndices.length > 0) {
-        isAfterIndex(indicesLikelyItem, aIndices,0, 4, 1.5, itemNameWeights);
-        isAfterIndex(indicesLikelyItem, anIndices,0, 4, 1.5, itemNameWeights);
+        // Ex: take a sword
+        isAfterIndex(potentialItem.indices, aIndices, 0, 4, 1.5, potentialItem.weights);
+        isAfterIndex(potentialItem.indices, anIndices, 0, 4, 1.5, potentialItem.weights);
       }
 
-      //If item is after of
+      // If token is near "of" 
       if (ofIndices.length > 0) {
-        //Ex: "Take 3 of the apples"
-        isAfterIndex(indicesLikelyItem, ofIndices, 0, 1, 0.5, itemNameWeights);
-        isAfterIndex(indicesLikelyItem, ofIndices, 2, 4, 1, itemNameWeights);
+        // Ex: take 3 of the swords
+        isAfterIndex(potentialItem.indices, ofIndices, 0, 1, 0.5, potentialItem.weights);
+        isAfterIndex(potentialItem.indices, ofIndices, 2, 4, 1, potentialItem.weights);
       }
 
-      //If item is before in or into
+      // If token is near "in/into"  
       if (inIndices.length > 0 || intoIndices.length > 0) {
-        isBeforeIndex(indicesLikelyItem, inIndices,0, 8, 1, itemNameWeights);
-        isBeforeIndex(indicesLikelyItem, intoIndices,0, 8, 1, itemNameWeights);
+        // Ex: take sword and put in
+        isBeforeIndex(potentialItem.indices, inIndices, 0, 8, 1, potentialItem.weights);
+        isBeforeIndex(potentialItem.indices, intoIndices, 0, 8, 1, potentialItem.weights);
+
+        isAfterIndex(potentialItem.indices, inIndices, 0, 3, -2, potentialItem.weights);
       }
 
-      //If item is before and
+      // If token is near "and"
       if (andIndices.length > 0) {
-        isBeforeIndex(indicesLikelyItem, andIndices, 0, 3, 1, itemNameWeights);
-        (indicesLikelyItem, andIndices, 4, 6, 0.5, itemNameWeights);
+        // Ex: sword, gun, and shield
+        isBeforeIndex(potentialItem.indices, andIndices, 0, 3, 1, potentialItem.weights);
+        isBeforeIndex(potentialItem.indices, andIndices, 4, 6, 0.5, potentialItem.weights);
+
+        isAfterIndex(potentialItem.indices, andIndices, 0, 3, 1.5, potentialItem.weights);
 
       }
 
-      //if item is before it or its
+      // If token is near "it/its"
       if (itIndices.length > 0 || itsIndices.length > 0) {
         //Ex: "apple and put it"
-        isBeforeIndex(indicesLikelyItem, itIndices, 0,3, 0.5, itemNameWeights);
-        isBeforeIndex(indicesLikelyItem, itsIndices, 4,8, 1.5, itemNameWeights);
+        isBeforeIndex(potentialItem.indices, itIndices, 0, 3, -1, potentialItem.weights);
+        isBeforeIndex(potentialItem.indices, itsIndices, 4, 8, 1.5, potentialItem.weights);
+
+        isAfterIndex(potentialItem.indices, itsIndices, 0, 3, -2, potentialItem.weights);
       }
 
-      //If item is before "them"
-      if(themIndices.length > 0){
-        //Ex: "and put them"
-        isBeforeIndex(indicesLikelyItem, themIndices, 0,3, 0.5, itemNameWeights);
-        isBeforeIndex(indicesLikelyItem, themIndices, 4,8, 1.5, itemNameWeights);
-      }
-      log("itemNameWeights: " + itemNameWeights);
+      // If token is near "them"
+      if (themIndices.length > 0) {
+        // Ex: "and put them"
+        isBeforeIndex(potentialItem.indices, themIndices, 0, 3, -1.5, potentialItem.weights);
+        isBeforeIndex(potentialItem.indices, themIndices, 4, 8, 1.5, potentialItem.weights);
 
-      //The words with the most weight is likely part of the item name.
-      //Initialize, will be used to hold multiple strings
+        isAfterIndex(potentialItem.indices, themIndices, 0, 2, -2, potentialItem.weights);
+      }
+
+      // If token is near "that"
+      if (thatIndices.length > 0) {
+        // Ex: take that apple
+        isAfterIndex(potentialItem.indices, thatIndices, 0, 3, 1.5, potentialItem.weights);
+      }
+
+      // If token is near "then"
+      if (thenIndices.length > 0) {
+        // Ex: take the sword then the apple
+        isAfterIndex(potentialItem.indices, thenIndices, 0, 3, 1.5, potentialItem.weights);
+
+        isBeforeIndex(potentialItem.indices, thenIndices, 0, 3, 1.5, potentialItem.weights);
+      }
+      log("potentialItem.weights: " + potentialItem.weights);
+
+      // Initialize holder for item tokens
       itemNameParts = [];
       
-      //If weights in array pass threshold, push their respective name parts to a holder to join into final item string
-      itemNameWeights.forEach((weight,index)=>{
-        if(weight >= 4){
-          itemNameParts.push(likelyItemNames[index]);
+      // Find last index that passes weight threshold to know when last item tokens will be stored
+      for (let i = potentialItem.weights.length - 1; i >= 0; i--) {
+        if (potentialItem.weights[i] >= 4) {
+          lastWeightIndex = i;
+          break;
+        }
+      }
+
+      // Push potential items into holder if they pass weight threshold
+      potentialItem.weights.forEach((weight, index) => {
+        if (weight >= 4) {
+          itemNameParts.push(potentialItem.tokens[index]);
           log("itemNameParts: " + itemNameParts);
 
-          //Get the item amt index determined by proximity to item name from plr sentence if it exists
-          finalItemAmtIndex = findClosestNumberIndex(equipTextInput,indicesLikelyItem[index]); //returns -1 if no numbers exist 
-          log("finalItemAmtIndex: " + finalItemAmtIndex);
+          // Slice text chunk at potential item index for end of item testing
+          textChunk = newText.replace(">", "")
+            .trim()
+            .split(" ")
+            .slice(potentialItem.indices[index], potentialItem.indices[index] + 2)
+            .join(" ");
+          log("textChunk: " + textChunk);
 
+          // Test for end of item name to join and store item from holder
+          pattern = new RegExp(`\\b${potentialItem.tokens[index]}\\b\\s*(,|and|\\.)`, 'i');
+          itemEnd = textChunk.search(pattern);
+          log("itemEnd: " + itemEnd);
+
+          if (itemEnd !== -1 || index == lastWeightIndex) {
+            // Combine item name parts into final item name
+            finalItemName = itemNameParts.join(" ");
+            log("finalItemName: " + finalItemName);
+
+            // Clear the array after item is stored for next possible item
+            itemNameParts = [];
+
+            // Get item amt
+            itemAmt = findClosestNumberBefore(equipTextInput, potentialItem.indices[index]);
+
+            if (!itemAmt) {
+              itemAmt = 1;
+            }
+
+            // Get index if already existing item in player inv 
+        alreadyItemIndex = [];
+            alreadyItemIndex = indicesOf(state.playerInv.item, finalItemName);
+
+            // Increment item amt if already existing in inv
+            if (alreadyItemIndex) {
+              state.playerInv.amt[alreadyItemIndex] += itemAmt;
+              state.msgHolder = state.msgHolder + `🎒 +${itemAmt} ${state.playerInv.item[alreadyItemIndex]}\n`;
+        }
+            else {
+              // Else new item is stored
+              state.playerInv.item.push(finalItemName);
+              state.playerInv.amt.push(itemAmt);
+              state.msgHolder = state.msgHolder + `🎒 +${itemAmt} ${finalItemName}\n`;
+        }
+          }
         }
       });
-      
-      //If items pass the weighting, finalize item to store
-      if(itemNameParts.length > 0){
-        //After get item name parts, join into a single final item name string
-        itemNameFinal = itemNameParts.join(" "); //string
-        log("itemNameFinal: " + itemNameFinal);
 
-        //Verify the final item amt
-        //Default item amt if amt isnt mentioned by plr
-        if(finalItemAmtIndex == -1){
-          amtFinal = 1;
-        }else{
-          //If item amt was specified and found
-          amtFinal = Number(equipTextInput[finalItemAmtIndex]);
-        }
-        log("amtFinal: " + amtFinal);
-
-        //Finally, check player inventory if item already exists and get its index
-        alreadyItemIndex = [];
-        alreadyItemIndex = indicesOf(state.playerInv.item,itemNameFinal);
-        log("alreadyItemIndex: " + alreadyItemIndex);
-        //If player already has item, increment item amt
-        if(alreadyItemIndex){
-          state.playerInv.amt[alreadyItemIndex] += amtFinal;
-        }
-        else{ //If player doesnt have the item
-          //new items are added to inventory
-          state.playerInv.item.push(itemNameFinal);
-          
-          //Corresponding new item amts
-          state.playerInv.amt.push(amtFinal);
-        }
-
-        //Update inv sc
+      //Update SC
         storeInvToSC();
 
         //TODO: Diversify text appendment
         return text = text + " It remains in your possession."
-
-      }//end of finalize item
 
     }//end of filtered array not empty
   
@@ -4005,7 +4116,14 @@ function storeSkillsToSC(){
 
   //Format and display to sc Ex: Fireball (20 MP)
   skillSC.entry = state.playerSkills.name.map((skill, index) => `${skill} (Lvl ${state.playerSkills.lvl[index]}) (${state.playerSkills.cost[index]} MP)`).join("\n");
-  return true;
+
+  // Trim notes on char limit to prevent memory overfill
+  if (skillSC.description.length > 3000) {
+    halfIndex = Math.floor(skillSC.description.length / 2);
+    skillSC.description = skillSC.description.slice(0, halfIndex);
+
+    console.log("Trimming skillSC description to prevent memory overload.");
+  }
 }
 
 //To RETRIEVE skills from SC.
@@ -4130,6 +4248,15 @@ function storeTalentsToSC(){
 
   //Format and display to sc 
   talentSC.entry = state.playerTalents.name.map((talent, index) => `${talent} (Lvl ${state.playerTalents.lvl[index]}) (${state.playerTalents.cost[index]} EP)`).join("\n");
+
+  // Trim notes on char limit to prevent memory overfill
+  if (talentSC.description.length > 3000) {
+    halfIndex = Math.floor(talentSC.description.length / 2);
+    talentSC.description = talentSC.description.slice(0, halfIndex);
+
+    console.log("Trimming talentSC description to prevent memory overload.");
+  }
+
   return true;
 }
 
@@ -4578,7 +4705,6 @@ function executeSkill(){
 
       // Save the updated skill data to the storage container
       storeSkillsToSC();
-
 
       //Log skill lvl change in skill sc notes
       const skillSC = storyCards.find(sc => sc.title === "Player Skills")   
