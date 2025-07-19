@@ -1,18 +1,19 @@
-// TAS Library Script
+// TSS Library Script
 
-// TRUE AUTOMATIC STATS (TAS) SCRIPT by Yi1i1i
+// TRUE SCI-Fi STATS (TSS) SCRIPT by Aassmodeuss
 
 // Credits
+  // Yi1i1i - For creating TSS which this entire script is based on
   // BinKompliziert - Idea for Capitalization weighting for skill learning
   // jackoneill2443 - Idea for modifying player input to show stat results
   // LewdLeah - General Scripting Knowledge
 //
 
 // This function runs the library hook
-onLibrary_TAS();
+onLibrary_TSS();
 
 // LIBRARY HOOK
-function onLibrary_TAS() {
+function onLibrary_TSS() {
   // UNLOCK SCRIPT FOR DEBUG (Comment out to turn off)
   state.startScript = true;
   log("state.startScript: " + state.startScript);
@@ -31,14 +32,14 @@ function onLibrary_TAS() {
 }
 
 // INPUT HOOK
-function onInput_TAS(text) {
+function onInput_TSS(text) {
   //Check for unlocking
   text = unlockScript(text);
 
   //Check for locking
   text = lockScript(text);
 
-  text = helpCommandInput_TAS(text);
+  text = helpCommandInput_TSS(text);
 
   //Unlocking runs main()
   if (state.startScript == true && info.actionCount >= 0) {
@@ -89,15 +90,15 @@ function onInput_TAS(text) {
 }
 
 // CONTEXT HOOK
-function onContext_TAS(text){
+function onContext_TSS(text){
     text = removeAngleText(text);
   
   return text;
 }
 
 // OUTPUT HOOK
-function onOutput_TAS(text) {
-  text = helpCommandOutput_TAS(text);
+function onOutput_TSS(text) {
+  text = helpCommandOutput_TSS(text);
 
   // start of main()
   if (state.startScript == true && info.actionCount >= 0) {
@@ -1901,13 +1902,13 @@ const harnessSkill = [
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-/// TAS STANDARD FUNCTIONS
+/// TSS STANDARD FUNCTIONS
 //Input /start unlocks the script else script naturally locked
 function unlockScript(key){ 
   if (state.startScript == false) {
     if (key.includes("/start")) {
       state.startScript = true;
-      text = text + "\n 🔓 TAS Script Unlocked!";
+      text = text + "\n 🔓 TSS Script Unlocked!";
     }
   }
   return text;
@@ -1918,16 +1919,16 @@ function lockScript(key){
   if (state.startScript == true) {
     if (key.includes("/end")) {
       state.startScript = false;
-      text = text + "\n 🔒 TAS Script Locked!"
+      text = text + "\n 🔒 TSS Script Locked!"
     }
   }
   return text;
 }
 
 //detect /help and display help
-function helpCommandInput_TAS(text){
+function helpCommandInput_TSS(text){
   if(text.includes("/help stats")){
-    state.commandCenter_TAS = 
+    state.commandCenter_TSS = 
     `
     <<
     📊 Player Stats Guide
@@ -1956,7 +1957,7 @@ function helpCommandInput_TAS(text){
     `
   }
   else if(text.includes("/help talents")){
-    state.commandCenter_TAS = 
+    state.commandCenter_TSS = 
     `
     <<
     🎯 Talent System Guide
@@ -1975,7 +1976,7 @@ function helpCommandInput_TAS(text){
     `
   }
   else if(text.includes("/help skills")){
-    state.commandCenter_TAS = 
+    state.commandCenter_TSS = 
     `
     <<
     🎯 Skills System Guide
@@ -1991,7 +1992,7 @@ function helpCommandInput_TAS(text){
   }
   
   else if (text.includes("/help inventory")) {
-  state.commandCenter_TAS = 
+  state.commandCenter_TSS = 
   `
   <<
   📦 Inventory Help
@@ -2003,7 +2004,7 @@ function helpCommandInput_TAS(text){
   `
   }
   else if (text.includes("/help actions")) {
-    state.commandCenter_TAS = 
+    state.commandCenter_TSS = 
     `
     <<
     🎬 Action System Help
@@ -2027,7 +2028,7 @@ function helpCommandInput_TAS(text){
     `
   }
   else if (text.includes("/help keywords")) {
-    state.commandCenter_TAS = 
+    state.commandCenter_TSS = 
     `
     <<
     🔎 talentWords:\n${talentWords}
@@ -2043,7 +2044,7 @@ function helpCommandInput_TAS(text){
     `
   }
   else if (text.includes("/help")) {
-    state.commandCenter_TAS = 
+    state.commandCenter_TSS = 
     `
     <<
     TRUE AUTO STATS RPG SCRIPT BY Yi1i1i
@@ -2065,11 +2066,11 @@ function helpCommandInput_TAS(text){
   return " ";
 }
 
-function helpCommandOutput_TAS(text){
-  if(state.commandCenter_TAS){
-    text = state.commandCenter_TAS;
+function helpCommandOutput_TSS(text){
+  if(state.commandCenter_TSS){
+    text = state.commandCenter_TSS;
   }
-  delete state.commandCenter_TAS
+  delete state.commandCenter_TSS
   return text;
 }
 
@@ -5665,5 +5666,4 @@ function detectScout(text){
   
   return text;
 }
-
 
