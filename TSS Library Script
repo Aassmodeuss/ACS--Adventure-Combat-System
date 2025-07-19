@@ -3488,7 +3488,7 @@ function newLasrifleStats(){
 function createIfNoLasRifleSC(){
   if (!storyCards.find(sc => sc.title === "Las-Rifle")) {
     // If "Las-Rifle" card doesn't exist, create it
-    addStoryCard("Las-Rifle", "Blank", "Player Stats");
+    addStoryCard("Las-Rifle", "Blank", "Ranged Weapons");
 
     // Fetch the "Las-Rifle" card
     const LasRifle = storyCards.find(sc => sc.title === "Las-Rifle");
