@@ -1,4 +1,3 @@
-
 // TSS Input Script
 
 const modifier = (text) => { 
