@@ -2,7 +2,7 @@
 // TAS Input Script
 
 const modifier = (text) => { 
-  text = onInput_TSS(text);
+  text = onInput_TAS(text);
 
   return { text }
 }//end of modifier
