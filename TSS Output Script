@@ -2,7 +2,7 @@
 
 // Every script needs a modifier function
 const modifier = (text) => {
-  text = onOutput_TSS(text);
+  text = onOutput_TAS(text);
  
   return { text }
 }//end of modifier
