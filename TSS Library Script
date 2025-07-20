@@ -66,7 +66,7 @@ function onInput_TSS(text) {
 
      text = detectAttack(text);
 
-    text = detectRattack(text);
+    text = detectRangedattack(text);
 
     text = detectPlrActionsCallingStorage(text);
     
@@ -5203,8 +5203,8 @@ function detectAttack(text){
 }
 
 
-function detectRattack(text){
-  startRangedAttack = false;
+function detectRangedattack(text){
+  startRangedattack = false;
     
   // Verify player is not dialoguing (case-insensitive)
   dialogueCheck = true;
@@ -5218,27 +5218,27 @@ function detectRattack(text){
 
   //If player is not dialoguing, check input for ratk words and split the input
   if(dialogueCheck == true){
-    rangedrattackTextInput = []
-    rangedrattackTextInput = findTargetsThenSplit(text,rangedattackwords,rangedrattackTextInput,true);
-    console.log("rangedrattackTextInput simplified: " + rangedrattackTextInput);
+    rangedattackTextInput = []
+    rangedattackTextInput = findTargetsThenSplit(text,rangedattackwords,rangedattackTextInput,true);
+    console.log("rangedattackTextInput simplified: " + rangedattackTextInput);
 
     //If input has ratk words get their indices
-    if(rangedrattackTextInput != null){
-      allRangedAttackWordIndices = [];
-      allRangedAttackWordIndices = indicesOfTargets(rangedrattackTextInput,rangedattackwords);
-      log("allRangedAttackWordIndices:" + allRangedAttackWordIndices);
+    if(rangedattackTextInput != null){
+      allRangedattackWordIndices = [];
+      allRangedattackWordIndices = indicesOfTargets(rangedattackTextInput,rangedattackwords);
+      log("allRangedattackWordIndices:" + allRangedattackWordIndices);
 
       //Detect if there is  you + ratk or and + ratk
-      if(allRangedAttackWordIndices != null){
-        startRangedAttack = checkYouBeforeIndicesArr(rangedrattackTextInput,allRangedAttackWordIndices,3) || checkAndBeforeIndicesArr(rangedrattackTextInput,allRangedAttackWordIndices,2);
-        log("startRangedAttack: "+ startRangedAttack)
+      if(allRangedattackWordIndices != null){
+        startRangedattack = checkYouBeforeIndicesArr(rangedattackTextInput,allRangedattackWordIndices,3) || checkAndBeforeIndicesArr(rangedattackTextInput,allRangedattackWordIndices,2);
+        log("startRangedattack: "+ startRangedattack)
       }
     }
   }
 
-  if(startRangedAttack){
+  if(startRangedattack){
     // Get the player's ranged attack and speed stats
-    plrAtk = state.playerStats.ratk;
+    plrRatk = state.playerStats.ratk;
     plrSpd = state.playerStats.spd;
     // Define ranged attack strength ranges with corresponding ranged attack messages
     const ratkRanges = [
@@ -5273,7 +5273,7 @@ function detectRattack(text){
     // Calculate ammunition requirements for a ranged attack
     ratkAmmoLoss = (-1)
     
-    log("Ratk ammunition loss: " + ratkAmmoLoss);
+    log("ratk ammunition loss: " + ratkAmmoLoss);
 
     // Attack energy check defaults to false
     ratkAmmoCheck = false;
@@ -5334,7 +5334,7 @@ function detectRattack(text){
 
       storeLasRifleToSC();
     } // End of has ratk energy
-  } // End of startRangedAttack
+  } // End of startRangedattack
 
   return text;
 }
