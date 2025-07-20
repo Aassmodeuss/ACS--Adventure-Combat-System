@@ -10,10 +10,10 @@
 //
 
 // This function runs the library hook
-onLibrary_TSS();
+onLibrary_TAS();
 
 // LIBRARY HOOK
-function onLibrary_TSS() {
+function onLibrary_TAS() {
   // UNLOCK SCRIPT FOR DEBUG (Comment out to turn off)
   state.startScript = true;
   log("state.startScript: " + state.startScript);
@@ -26,20 +26,20 @@ function onLibrary_TSS() {
   if (state.turnCount == undefined) {
     state.turnCount = 0;
   }
- if (state.msgHolder == undefined){
+  if (state.msgHolder == undefined){
     state.msgHolder = "";
   }
 }
 
 // INPUT HOOK
-function onInput_TSS(text) {
+function onInput_TAS(text) {
   //Check for unlocking
   text = unlockScript(text);
 
   //Check for locking
   text = lockScript(text);
 
- helpCommandInput_TSS(text);
+  helpCommandInput_TAS(text);
 
   //Unlocking runs main()
   if (state.startScript == true && info.actionCount >= 0) {
@@ -48,28 +48,26 @@ function onInput_TSS(text) {
 
     //Create story cards if none
     createIfNoStatSC();
-    createIfNoLasRifleSC();
     createIfNoInvSC();
     createIfNoTalentSC();
     createIfNoSkillSC();
-    createIfNoModifierSC();
+    createIfNoModifierSC();    
 
     //Updates codebase if player edits their storage SCs
     retrieveStatsFromSC();
-    retrieveLasRifleFromSC();
     retrieveTalentsFromSC();
     retrieveSkillsFromSC();
     retrieveInvFromSC();
-    retrieveModifiersFromSC()
+    retrieveModifiersFromSC();
 
     text = detectStoreInv(text);
 
-     text = detectAttack(text);
-
+    text = detectAttack(text);
+    
     text = detectRangedattack(text);
 
     text = detectPlrActionsCallingStorage(text);
-    
+
     text = detectDodge(text);
 
     text = detectScout(text);
@@ -90,15 +88,15 @@ function onInput_TSS(text) {
 }
 
 // CONTEXT HOOK
-function onContext_TSS(text){
-    text = removeAngleText(text);
+function onContext_TAS(text){
+  text = removeAngleText(text);
   
   return text;
 }
 
 // OUTPUT HOOK
-function onOutput_TSS(text) {
-  text = helpCommandOutput_TSS(text);
+function onOutput_TAS(text) {
+  text = helpCommandOutput_TAS(text);
 
   // start of main()
   if (state.startScript == true && info.actionCount >= 0) {
@@ -107,12 +105,10 @@ function onOutput_TSS(text) {
 
     //Create story cards if none
     createIfNoStatSC();
-    createIfNoLasRifleSC();
     createIfNoInvSC();
     createIfNoTalentSC();
     createIfNoSkillSC();
     createIfNoModifierSC();
-
 
     //End of skill learning process. Do not disturb talent storage beforehand.
     text = getEnergyCost(text);
@@ -124,11 +120,6 @@ function onOutput_TSS(text) {
     text = detectHurt(text);
     //Final stats store back to SC in correct formatting
     storeStatsToSC();
-
-    //Updates Las-Rifle in code if player edits Las-Rifle in SC
-    retrieveLasRifleFromSC();
-    //Final stats store back to SC in correct formatting
-    storeLasRifleToSC();
 
     //Updates player talents in code if player edits their talents in SC
     retrieveTalentsFromSC();
@@ -149,8 +140,8 @@ function onOutput_TSS(text) {
     retrieveModifiersFromSC()
     //Final mods store back to SC in correct formatting
     storeModifiersToSC();
-
-     state.message = state.msgHolder;
+    
+    state.message = state.msgHolder;
     state.msgHolder = "";
 
     turnCounter();
@@ -178,11 +169,11 @@ learnWords = [
 ];
 
 equipWords = [
-  "acquire", "add", "collect", "equip", "gather", "grab", "hold", "keep", "loot", "obtain", "pick", "put", "receive", "retrieve", "stash", "store", "take", "wear"
+  "acquire", "add", "collect", "equip", "gather", "grab", "hold", "keep", "loot", "obtain", "pick", "put", "receive", "retrieve", "stash", "snatch", "store", "take", "toss", "wear"
 ];
 
 invWords = [
-  "bag", "backpack", "body", "case", "chest", "collection",  "container", "crates", "equipment", "hands", "hand", "hardpoints", "holder", "holdings", "inventory", "items", "legs", "loot", "pack", "pocket", "pouch", "sack", "satchel", "scabbard", "sheath", "storage", "supplies", "tote"
+  "bag", "backpack", "body", "case", "chest", "collection",  "container", "crates", "equipment", "hands", "hand", "holder", "holdings", "inventory", "items", "legs", "loot", "pack", "pocket", "pouch", "rucksack", "sack", "satchel", "storage", "supplies", "tote"
 ];
 
 numWords = [
@@ -251,19 +242,14 @@ stopWords = [
   "know", "knows", "knew", "stopping", "stops", "becomes",
 
   // Game-Specific Terms
-  "skill", "talent", "ability", "executes", "existing", "consumes mana",
-  "consumes ammo", "consumes energy", "successfully",
-  "suddenly", "predictably", "efficiently", "cast", "shield"
+  "skill", "talent", "ability", "executes", "existing",
+  "consumes mana", "consumes energy", "successfully",
+  "suddenly", "predictably", "efficiently", "cast"
 ];
 
 healingActions = [
   "heal", "recover", "restore", "regenerate", "revitalize", 
   "rejuvenate", "mend", "cure", "bandage", "apply", "inject", "swallow", "absorb", "patch", "treat", "soothe"
-];
-
-reloadActions = [
-  "load", "reload", 
-  
 ];
 
 consumeWords = [
@@ -291,20 +277,6 @@ greatHealWords = ["superior", "life elixir", "antibacterial", "vitality", "great
 powerfulHealWords = ["immortality", "crystal", "revival", "divine", "surgery","enchanted","powerful","extremely","extreme","mystical","legendary"
 ];
 
-// Empty reload items (empty ammo items)
-emptyReloadWords = [
-  "depleted", "drained", "empty",
-];
-
-// half reload items (half ammo items)
-halfReloadWords = ["half charge", "half clip", "half magazine"
-];
-
-// Strong healing items (stronger healing items for larger wounds)
-fullReloadWords = ["full charge", "full clip", "full magazine",
-];
-
-
 enterWords = ["crawl", "drift", "enter", "fall", "get", "go", "head", "lay", "lie down", "make", "move", "nap", "prepare", "proceed", "slip", "sleep", "settle", "sink", "snuggle", "step", "surrender", "take", "turn in", "transition"];
 
 restingWords = ["catnap", "doze", "hibernate", "nap", "relax", "rest", "sleep", "slumber", "asleep"];
@@ -328,6 +300,8 @@ assumedWrongPhrases = ["assumed competence", "assumed preparation", "assumed you
 slightlyWorseResults = ["the outcome was close, but mostly off the mark", "the outcome was mostly underwhelming", "the outcome was less than ideal", "the outcome was disappointing", "the outcome was not as good as anticipated", "the result didn't quite measure up", "the result fell short of expectations", "the result was below the expected level", "the result was not quite what was hoped for", "the performance didn't meet expectations", "the performance was below expectations", "the performance was shy of expectations", "the performance was quite subpar", "the final outcome was mildly disappointing", "the final result was a bit of a letdown"];
 
 attackWords = ["attack", "ambush", "bash", "batter", "bite", "bludgeon", "chop", "claw", "cleave", "club", "crack", "crush", "flail", "fling", "gouge", "hack", "impale", "jab", "kick", "lunge", "maul", "pound", "pummel", "pierce", "punch", "ram", "rend", "shred", "slash", "slam", "slice", "smash", "stab", "strike", "swipe", "swing", "smack", "thrust", "whack", "wreck"];
+
+rangedattackWords = ["fire", "fling", "loose", "lob", "launch", "shoot", "throw", "toss", ];
 
 const attackTier1 = [
   "A hesitant impact leaves a soft but clear mark.",
@@ -565,71 +539,30 @@ const attackTier10 = [
   "A final moment of doubt precedes a storm."
 ];
 
-rangedattackwords = ["fire", "fling", "loose", "lob", "launch", "shoot", "throw", "toss", ];
-
 const rangedattackTier1 = [
   "your shot goes wide, missing your target entirely",
-  "your shot goes wide, missing your target entirely",
-  "your shot goes wide, missing your target entirely",
-  "your shot goes wide, missing your target entirely",
-  "you shoot high, narrowly missing your target",
-  "you shoot high, narrowly missing your target",
-  "you shoot high, narrowly missing your target",
-  "your shot hits, but only grazes your target",
-  "your shot hits, but only grazes your target",
-  "your shot hits, but only grazes your target",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
+  "Your shot veers off course, missing your target completely",
+  "Your shot flies wide, failing to hit your mark",
+  "Your aim is off, and the shot misses the target entirely",
+  "Your shot strays, completely missing the intended target",
+  "Your projectile misses, sailing wide past your target",
+  "Your shot goes off-target, missing completely",
+  "You fire, but the shot goes wide and misses your foe",
+  "Your aim falters, and the shot misses the target by a wide margin",
+  "You take the shot, but it misses entirely, going wide",
   "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
   "your shot hits, moderatly damaging your target",
   "your shot hits, causing heavy damage your target",
   "your shot hits, mortally wounding your target",
   "your shot hits, instantly killing your target",
-
 ];
 
 const rangedattackTier2 = [
   
   "your shot goes wide, missing your target entirely",
-  "your shot goes wide, missing your target entirely",
-  "your shot goes wide, missing your target entirely",
   "you shoot high, narrowly missing your target",
-  "you shoot high, narrowly missing your target",
-  "your shot hits, but only grazes your target",
-  "your shot hits, but only grazes your target",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
   "your shot grazes your target, dealing little damage",
   "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
   "your shot hits, moderatly damaging your target",
   "your shot hits, causing heavy damage your target",
   "your shot hits, mortally wounding your target",
@@ -639,37 +572,9 @@ const rangedattackTier2 = [
 const rangedattackTier3 = [
   "your shot goes wide, missing your target entirely",
   "you shoot high, narrowly missing your target",
-  "you shoot high, narrowly missing your target",
-  "your shot hits, but only grazes your target",
-  "your shot hits, but only grazes your target",
   "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
   "your shot hits, lightly damaging your target",
   "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
   "your shot hits, mortally wounding your target",
   "your shot hits, instantly killing your target",
 ];
@@ -677,40 +582,11 @@ const rangedattackTier3 = [
 const rangedattackTier4 = [
   
   "you shoot high, narrowly missing your target",
-  "you shoot high, narrowly missing your target",
-  "your shot hits, but only grazes your target",
-  "your shot hits, but only grazes your target",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
+  "your shot hits, but only grazes your target",,
   "your shot grazes your target, dealing little damage",
   "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
   "your shot hits, moderatly damaging your target",
   "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, mortally wounding your target",
   "your shot hits, mortally wounding your target",
   "your shot hits, instantly killing your target",
 ];
@@ -719,86 +595,22 @@ const rangedattackTier5 = [
   
   "you shoot high, narrowly missing your target",
   "your shot hits, but only grazes your target",
-  "your shot hits, but only grazes your target",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
   "your shot grazes your target, dealing little damage",
   "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
   "your shot hits, moderatly damaging your target",
   "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
   "your shot hits, mortally wounding your target",
   "your shot hits, instantly killing your target",
-  "your shot hits, instantly killing your target",
-  
 ];
 
 const rangedattackTier6 = [
   "you shoot high, narrowly missing your target",
   "your shot hits, but only grazes your target",
-  "your shot hits, but only grazes your target",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
   "your shot grazes your target, dealing little damage",
   "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
   "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
   "your shot hits, causing heavy damage your target",
   "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, instantly killing your target",
   "your shot hits, instantly killing your target",
   
 ];
@@ -806,47 +618,11 @@ const rangedattackTier6 = [
 const rangedattackTier7 = [
 
   "your shot hits, but only grazes your target",
-  "your shot hits, but only grazes your target",
-  "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
   "your shot grazes your target, dealing little damage",
   "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
   "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
   "your shot hits, causing heavy damage your target",
   "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, instantly killing your target",
-  "your shot hits, instantly killing your target",
   "your shot hits, instantly killing your target",
 ];
 
@@ -854,50 +630,10 @@ const rangedattackTier8 = [
   
   "your shot hits, but only grazes your target",
   "your shot grazes your target, dealing little damage",
-  "your shot grazes your target, dealing little damage",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
   "your shot hits, lightly damaging your target",
   "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
   "your shot hits, causing heavy damage your target",
   "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, instantly killing your target",
-  "your shot hits, instantly killing your target",
   "your shot hits, instantly killing your target",
 ];
 
@@ -905,99 +641,17 @@ const rangedattackTier9 = [
    
   
   "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
   "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
   "your shot hits, causing heavy damage your target",
   "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, instantly killing your target",
-  "your shot hits, instantly killing your target",
   "your shot hits, instantly killing your target",
 ];
 
 const rangedattackTier10 = [
   "your shot hits, lightly damaging your target",
-  "your shot hits, lightly damaging your target",
   "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, moderatly damaging your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
-  "your shot hits, causing heavy damage your target",
   "your shot hits, causing heavy damage your target",
   "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, mortally wounding your target",
-  "your shot hits, instantly killing your target",
-  "your shot hits, instantly killing your target",
   "your shot hits, instantly killing your target",
 ];
 
@@ -1162,43 +816,35 @@ const atkSpdTier10 = [
 ];
 
 const ratkSpdTier1 = [
-  "You struggle to get your weapon on target.",
-  
-];
+  "You slowly get your weapon on target.",
+  ];
 
 const ratkSpdTier2 = [
   "You're slow on the draw.",
- 
-];
+ ];
 
 const ratkSpdTier3 = [
   "Your hesitate while you pick your target.",
-  
 ];
 
 const ratkSpdTier4 = [
   "You steady your aim and verify your shot.",
-  
 ];
 
 const ratkSpdTier5 = [
   "You take your time and make your shot.",
-  
 ];
 
 const ratkSpdTier6 = [
   "You draw quickly and acquire your target.",
-  
 ];
 
 const ratkSpdTier7 = [
-  "You suickly fire on your target.",
-  
+  "You quickly fire on your target.",
 ];
 
 const ratkSpdTier8 = [
   "You quick draw your weapon in a blur and fire.",
-
 ];
 
 const ratkSpdTier9 = [
@@ -1492,23 +1138,6 @@ exhaustionSleepArray = [
   "you need to transition into slumber, else your body will fail you."
 ];
 
-halfShieldArray = [
-  "Your HUD flashes WARNING, SHIELDS AT 50%.",
-  "Shields down to half strength.",
-  "50% shield strength remaining.",
-  
-];
-
-lowshieldArray = [
-  "Your HUD flashes !!WARNING!! SHIELDS BELOW 10%, FAILURE IMMINENT!!",
-
-];
-
-depleetedShieldArray = [
-  "Alarms sound and your HUD flashes !!!!!WARNING!!!!! SHIELDS AT 0% SEEK COVER IMMIDEATLY",
-  
-];
-
 bodyParts = [
   // Standard humanoid body parts
   "abdomen", "achilles tendon", "ankle", "arm", "arteries", "back", "biceps", "bladder", "buttocks", "body",
@@ -1526,9 +1155,9 @@ bodyParts = [
   "snout", "spikes", "stinger", "talon", "tail", "thorax", "trunk", "tusk", "whiskers", "wing"
 ];
 
-beginnerPsykerSpells = ["Aegis Spark", "Air Slash", "Arcane Bolt", "Astral Pulse", "Breeze Cutter", "Blink Step", "Cinder Pop", "Chain Zap", "Chilling Breeze", "Crystal Ray", "Cyclone Flick", "Dark Grasp", "Dimensional Skip", "Dust Surge", "Echo Bolt", "Eclipse Ray", "Ember Spark", "Enchanted Breeze", "Ether Grasp", "Ethereal Dash", "Fireball", "Flame Flicker", "Frost Spritz", "Frost Touch", "Frozen Grasp", "Gale Wave", "Glacial Spike", "Gravity Nudge", "Gust Levitate", "Healing Touch", "Hex Drizzle", "Holy Flicker", "Illusion Drift", "Illusory Veil", "Inferno Puff", "Ice Shard", "Lightning Jolt", "Light Beam", "Lunar Ripple", "Lumina Shot", "Ammo Burst", "Ammo Spark", "Ammo Wave", "Minor Curse", "Minor Shield", "Molten Drip", "Mystic Bind", "Mystic Flick", "Mystic Missile", "Nature’s Whisper", "Pebble Blast", "Phase Shift", "Pocket Flame", "Protective Ward", "Radiant Glow", "Runic Bind", "Runic Shot", "Searing Drizzle", "Scorch Burst", "Seismic Tap", "Shadow Whisper", "Shock Tap", "Spark", "Spirit Mend", "Starburst Jolt", "Static Shock", "Stone Toss", "Storm Spark", "Sunflare Orb", "Temporal Tick", "Thunder Snap", "Tidal Ripple", "Verdant Glow", "Void Tendril", "Whispering Ember", "Wind Gust", "Wisp Summon", "Zephyr Strike"];
+beginnerMageSpells = ["Aegis Spark", "Air Slash", "Arcane Bolt", "Astral Pulse", "Breeze Cutter", "Blink Step", "Cinder Pop", "Chain Zap", "Chilling Breeze", "Crystal Ray", "Cyclone Flick", "Dark Grasp", "Dimensional Skip", "Dust Surge", "Echo Bolt", "Eclipse Ray", "Ember Spark", "Enchanted Breeze", "Ether Grasp", "Ethereal Dash", "Fireball", "Flame Flicker", "Frost Spritz", "Frost Touch", "Frozen Grasp", "Gale Wave", "Glacial Spike", "Gravity Nudge", "Gust Levitate", "Healing Touch", "Hex Drizzle", "Holy Flicker", "Illusion Drift", "Illusory Veil", "Inferno Puff", "Ice Shard", "Lightning Jolt", "Light Beam", "Lunar Ripple", "Lumina Shot", "Mana Burst", "Mana Spark", "Mana Wave", "Minor Curse", "Minor Shield", "Molten Drip", "Mystic Bind", "Mystic Flick", "Mystic Missile", "Nature’s Whisper", "Pebble Blast", "Phase Shift", "Pocket Flame", "Protective Ward", "Radiant Glow", "Runic Bind", "Runic Shot", "Searing Drizzle", "Scorch Burst", "Seismic Tap", "Shadow Whisper", "Shock Tap", "Spark", "Spirit Mend", "Starburst Jolt", "Static Shock", "Stone Toss", "Storm Spark", "Sunflare Orb", "Temporal Tick", "Thunder Snap", "Tidal Ripple", "Verdant Glow", "Void Tendril", "Whispering Ember", "Wind Gust", "Wisp Summon", "Zephyr Strike"];
 
-beginnerMedicSkills = [
+beginnerHealerSkills = [
   "Heal", "Mend", "Soothing Touch", "Restore", "First Aid", "Cure", "Refresh", "Recovery", 
   "Light Mend", "Renew", "Purify", "Gentle Light", "Healing Wave", "Vitality Surge", "Rejuvenate", 
   "Blessing", "Protect", "Minor Ward", "Holy Light", "Divine Touch", "Harmonic Flow", "Revitalize", 
@@ -1546,7 +1175,7 @@ beginnerSwordsmanSkills = [
   "Balanced Cut", "Fury Strike", "Serrated Strike", "Whirlwind Slash", "Combat Focus", "Blade Dance"
 ];
 
-TechSkills = [
+beginnerPriestSkills = [
   "Holy Light", "Blessing", "Divine Touch", "Sacred Prayer", "Healing Prayer", "Purify", "Aura of Faith", 
   "Radiant Heal", "Sanctify", "Spiritual Cleansing", "Light's Embrace", "Cleansing Wave", "Divine Shield", 
   "Sacred Shield", "Spirit Mend", "Holy Barrier", "Grace of the Divine", "Renewing Touch", "Blessed Restoration", 
@@ -1568,12 +1197,27 @@ beginnerTankSkills = [
   "Guardian’s Protection", "Crippling Block", "Protective Stance", "Hold the Line"
 ];
 
-MarksmanSkills = [
-  "Aim", "Quick Shot", "Burst Fire", "Headshot", "Trick Shot", 
-  ];
+beginnerPaladinSkills = [
+  "Holy Strike", "Blessing", "Divine Shield", "Radiant Heal", "Smite", "Sacred Ward", "Lay on Hands", 
+  "Shield of Light", "Aura of Protection", "Divine Strike", "Holy Wrath", "Protection Aura", 
+  "Judgment", "Holy Light", "Sacred Defense", "Righteous Blow", "Light's Embrace", "Cleansing Touch", 
+  "Avenging Strike", "Blessed Shield", "Divine Intervention", "Healing Aura", "Divine Grace", 
+  "Retribution", "Sacred Cleansing", "Seal of Faith", "Divine Smite", "Holy Barrier", "Aura of Faith", 
+  "Justice Strike", "Shield Bash", "Blessed Hammer", "Divine Healing", "Crusader's Might", "Radiant Ward", 
+  "Shield of Justice", "Guardian's Blessing", "Faithful Touch", "Healing Light", "Aura of Courage", 
+  "Purifying Flame", "Judgment of the Light", "Holy Fury", "Righteous Protection", "Spirit of Valor", 
+  "Sacred Strike", "Beacon of Light", "Divine Hammer", "Light Infusion"
+];
 
-ReloadSkills = [
-  "Reload"
+beginnerHeroSkills = [
+  "Power Strike", "Quick Slash", "Shield Bash", "Healing Touch", "Agility Boost", "Charge", "Energy Burst",
+  "Flame Lash", "Ice Leap", "Thunder Clap", "Defensive Stance", "Sprint", "Vigilance", "Life Leech",
+  "Cloak of Shadows", "Fury Strike", "Fireball", "Ice Spike", "Wind Dash", "Stone Fist", "Heal Pulse",
+  "Arcane Blast", "Speed Burst", "Shield Wall", "Rallying Cry", "Smash", "Ranged Shot", "Elemental Fist",
+  "Healing Aura", "Flash Step", "Summon Familiar", "Poison Strike", "Haste", "Battle Roar", "Guardian Shield",
+  "Magnetic Pull", "Water Walk", "Gravity Slam", "Spirit Bind", "Invisibility", "Flash Heal", "Stunning Strike",
+  "Flare", "Mana Shield", "Blinding Flash", "Charge Strike", "Cleansing Wave", "Power Shield", "Summon Beast",
+  "Dragon Breath", "Quick Heal", "Light’s Grace", "Force Push", "Healing Wind", "Thunder Strike", "Arcane Shield"
 ];
 
 const upgradeTier1 = [
@@ -1902,13 +1546,13 @@ const harnessSkill = [
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-/// TSS STANDARD FUNCTIONS
+/// TAS STANDARD FUNCTIONS
 //Input /start unlocks the script else script naturally locked
 function unlockScript(key){ 
   if (state.startScript == false) {
     if (key.includes("/start")) {
       state.startScript = true;
-      text = text + "\n 🔓 TSS Script Unlocked!";
+      text = text + "\n 🔓 TAS Script Unlocked!";
     }
   }
   return text;
@@ -1919,16 +1563,16 @@ function lockScript(key){
   if (state.startScript == true) {
     if (key.includes("/end")) {
       state.startScript = false;
-      text = text + "\n 🔒 TSS Script Locked!"
+      text = text + "\n 🔒 TAS Script Locked!"
     }
   }
   return text;
 }
 
 //detect /help and display help
-function helpCommandInput_TSS(text){
+function helpCommandInput_TAS(text){
   if(text.includes("/help stats")){
-    state.commandCenter_TSS = 
+    state.commandCenter_TAS = 
     `
     <<
     📊 Player Stats Guide
@@ -1957,7 +1601,7 @@ function helpCommandInput_TSS(text){
     `
   }
   else if(text.includes("/help talents")){
-    state.commandCenter_TSS = 
+    state.commandCenter_TAS = 
     `
     <<
     🎯 Talent System Guide
@@ -1976,7 +1620,7 @@ function helpCommandInput_TSS(text){
     `
   }
   else if(text.includes("/help skills")){
-    state.commandCenter_TSS = 
+    state.commandCenter_TAS = 
     `
     <<
     🎯 Skills System Guide
@@ -1992,7 +1636,7 @@ function helpCommandInput_TSS(text){
   }
   
   else if (text.includes("/help inventory")) {
-  state.commandCenter_TSS = 
+  state.commandCenter_TAS = 
   `
   <<
   📦 Inventory Help
@@ -2004,7 +1648,7 @@ function helpCommandInput_TSS(text){
   `
   }
   else if (text.includes("/help actions")) {
-    state.commandCenter_TSS = 
+    state.commandCenter_TAS = 
     `
     <<
     🎬 Action System Help
@@ -2028,7 +1672,7 @@ function helpCommandInput_TSS(text){
     `
   }
   else if (text.includes("/help keywords")) {
-    state.commandCenter_TSS = 
+    state.commandCenter_TAS = 
     `
     <<
     🔎 talentWords:\n${talentWords}
@@ -2040,11 +1684,12 @@ function helpCommandInput_TSS(text){
     🔎 consumeWords:\n${consumeWords}
     🔎 restingWords:\n${restingWords}
     🔎 scoutWords:\n${scoutWords}
+    🔎 rangedattackWords:\n${rangedattackWords}
     >>
     `
   }
   else if (text.includes("/help")) {
-    state.commandCenter_TSS = 
+    state.commandCenter_TAS = 
     `
     <<
     TRUE AUTO STATS RPG SCRIPT BY Yi1i1i
@@ -2061,16 +1706,14 @@ function helpCommandInput_TSS(text){
     >>
     `
   }
-
-  // Clear command from context
-  return " ";
+  //todo: clear command from text
 }
 
-function helpCommandOutput_TSS(text){
-  if(state.commandCenter_TSS){
-    text = state.commandCenter_TSS;
+function helpCommandOutput_TAS(text){
+  if(state.commandCenter_TAS){
+    text = state.commandCenter_TAS;
   }
-  delete state.commandCenter_TSS
+  delete state.commandCenter_TAS
   return text;
 }
 
@@ -2133,7 +1776,7 @@ function indicesOfTargets(wordsArr,targetWordsArr){
 
 //Input a string and remove punctuation
 function removeSpecificPunctuation(str) {
-  return str.replace(/[.><,!?;:"()\n]/g, " ");
+  return str.replace(/[.><,!?;:"()\-\n]/g, " ");
 }
 
 //Return true or false for first letter capitalized
@@ -2163,7 +1806,7 @@ function findTargetsThenSplit(text, targetWordsArr, wordsArrHolder, simplify) {
   targetWordsArr.forEach(target => {
     targetRegex = new RegExp(`\\b${target}\\b`, "gi");
     
-     // If text has target, set yessplit true
+    // If text has target, set yessplit true
     if(targetRegex.test(cleanText)){
       // Optional replace large target words with first target word
       if (simplify === true && target.split(" ").length > 1) {
@@ -2471,7 +2114,7 @@ const raceMods = {
     mpMod: -10,
     epMod: -5,
     atkMod: 5,
-    ratkMod: 5,
+    ratkMod: 0,
     defMod: 15,
     spdMod: -5,
     lckMod: -5,
@@ -2495,7 +2138,7 @@ const raceMods = {
     mpMod: 20,
     epMod: 0,
     atkMod: -5,
-    ratkMod: 10,
+    ratkMod: 0,
     defMod: 0,
     spdMod: 5,
     lckMod: 10,
@@ -2531,7 +2174,7 @@ const raceMods = {
     mpMod: 0,
     epMod: 0,
     atkMod: -5,
-    ratkMod: 10,
+    ratkMod: 0,
     defMod: -10,
     spdMod: 15,
     lckMod: 10,
@@ -2567,7 +2210,7 @@ const raceMods = {
     mpMod: 20,
     epMod: 10,
     atkMod: -10,
-    ratkMod: 5,
+    ratkMod: 0,
     defMod: -5,
     spdMod: 15,
     lckMod: 10,
@@ -2579,7 +2222,7 @@ const raceMods = {
     mpMod: 20,
     epMod: 20,
     atkMod: 20,
-    ratkMod: 20,
+    ratkMod: 0,
     defMod: 20,
     spdMod: 20,
     lckMod: 20,
@@ -2603,7 +2246,7 @@ const raceMods = {
     mpMod: 5,
     epMod: 5,
     atkMod: 20,
-    ratkMod: 10,
+    ratkMod: 0,
     defMod: 15,
     spdMod: -10,
     lckMod: -5,
@@ -2615,7 +2258,7 @@ const raceMods = {
     mpMod: -10,
     epMod: -5,
     atkMod: 5,
-    ratkMod: -10,
+    ratkMod: 0,
     defMod: 10,
     spdMod: -10,
     lckMod: -15,
@@ -2651,7 +2294,7 @@ const raceMods = {
     mpMod: 5,
     epMod: 10,
     atkMod: 15,
-    ratkMod: 10,
+    ratkMod: 0,
     defMod: 5,
     spdMod: 5,
     lckMod: -5,
@@ -2663,7 +2306,7 @@ const raceMods = {
     mpMod: 10,
     epMod: 10,
     atkMod: 10,
-    ratkMod: 10,
+    ratkMod: 0,
     defMod: 10,
     spdMod: 10,
     lckMod: 0,
@@ -2675,7 +2318,7 @@ const raceMods = {
     mpMod: 5,
     epMod: 5,
     atkMod: -5,
-    ratkMod: -10,
+    ratkMod: 0,
     defMod: 10,
     spdMod: -5,
     lckMod: 0,
@@ -2958,7 +2601,7 @@ function createIfNoModifierSC(){
     const modSC = storyCards.find(sc => sc.title === "Player Modifiers");
     modSC.description = `Format for Modifying: Modifier: num\nModifiers influence your starting stats and modify the exp you receive.\nYour race is ${capitalizeFirst(plrRace)}.`;
 
- //Set player modifier values in SC based on their race
+    //Set player modifier values in SC based on their race
     modKeys.forEach(key => {
       state.playerModifiers[key] = raceMods[plrRace][key];
     });
@@ -2981,7 +2624,7 @@ function createIfNoModifierSC(){
     storeStatsToSC();
   }
 }
-  
+
 //STORES and displays the modifiers to player in sc
 function storeModifiersToSC(){
   //Format player modifiers holder for SC 
@@ -3002,7 +2645,7 @@ function storeModifiersToSC(){
   //Convert holder to string, clean commas, and finally store to sc entry
   modSC.entry = String(formatForSC).replace(/,/g, '');
 
- // Trim notes on char limit to prevent memory overfill
+  // Trim notes on char limit to prevent memory overfill
   if (modSC.description.length > 3000) {
     halfIndex = Math.floor(modSC.description.length / 2);
     modSC.description = modSC.description.slice(0, halfIndex);
@@ -3023,7 +2666,7 @@ function retrieveModifiersFromSC(){
   modEntries.forEach(entry => {
       // Match and extract stat and max stat values using regex
       const match = entry.trim().match(/^([A-Z]+)\s+Modifier:\s*(-?\d+(?:\.\d+)?)(?:%)?$/);
-     //log("mod sc match: " + match);
+      //log("mod sc match: " + match);
 
       //Store value in holder
       if (match) {
@@ -3037,7 +2680,7 @@ function retrieveModifiersFromSC(){
       }
   });
 
-  log(state.playerModifiers);
+  //log(state.playerModifiers);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -3050,6 +2693,7 @@ state.playerStats = state.playerStats || {
   mp: 0,
   ep: 0,
   atk: 0,
+  ratk: 0,
   def: 0,
   spd: 0,
   lck: 0,
@@ -3061,6 +2705,7 @@ state.playerStats = state.playerStats || {
   maxMp: 0,
   maxEp: 0,
   maxAtk: 0,
+  maxRatk: 0,
   maxDef: 0,
   maxSpd: 0,
   maxLck: 0,
@@ -3149,7 +2794,7 @@ function storeStatsToSC(){
 
   // Convert holder to string, clean commas, and finally store to sc entry
   statSC.entry = String(formatForSC).replace(/,/g, '');
-  
+
   // Trim notes on char limit to prevent memory overfill
   if (statSC.description.length > 3000) {
     halfIndex = Math.floor(statSC.description.length / 2);
@@ -3209,7 +2854,7 @@ function retrieveStatsFromSC(){
     }
   });
 
-  log(state.playerStats);
+  //log(state.playerStats);
 }
 
 // Function to increment the player's stats
@@ -3435,286 +3080,6 @@ function warnPlayerHealth(text){
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-//Initialize Las-Rifle stats
-state.lasrifleStats = state.lasrifleStats || {
-
-  hp: 0,
-  ammo: 0,
-
-  
-
-  maxHp: 100,
-  maxAmmo: 50,
-
-};
-
-lrmaxStatKeys = ["maxHp", "maxAmmo",];
-lrStatKeys = ["hp", "ammo",];
-
-
-//NOTE: Players stats will be stored in a sc. CREATE initial stats. RETRIEVE from or STORE to player stats: SC -> <- state.lasriflestats
-
-//Function to create new random player stats
-function newLasrifleStats(){  
-  //Get a random max level
-  state.lasrifleStats.maxLvl = 20
-
-  //Loop through each maxstat, and set max stats equal to max level
-  lrmaxStatKeys.forEach((mStat) => {
-    state.lasrifleStats[mStat] = state.lasrifleStats.maxLvl;
-  });
-  
-  //Give player random initialized stats capped by max level
-  lrStatKeys.forEach((stat) => {
-    state.lasrifleStats[stat] = randomInt(1,state.lasrifleStats.maxLvl);
-  });
-
-  
-  // Stat scaling
-  state.lasrifleStats.maxHp = 100
-  state.lasrifleStats.maxAmmo = 50
-
-  // Player starts at full health
-  state.lasrifleStats.hp = state.lasrifleStats.maxHp;
-  state.lasrifleStats.ammo = state.lasrifleStats.maxAmmo;
-
-}
-
-//CREATE new sc with lasriflestats if sc doesnt exist
-function createIfNoLasRifleSC(){
-  if (!storyCards.find(sc => sc.title === "Las-Rifle")) {
-    // If "Las-Rifle" card doesn't exist, create it
-    addStoryCard("Las-Rifle", "Blank", "Ranged Weapons");
-
-    // Fetch the "Las-Rifle" card
-    const LasRifle = storyCards.find(sc => sc.title === "Las-Rifle");
-    LasRifle.description = "Format for Modifying: Stat: num/maxNum";
-
-    //Initialize and randomize new player stats
-    newLasrifleStats();
-
-    storeLasRifleToSC();
-  }
-}
-
-// STORES and displays the stats to player in sc
-function storeLasRifleToSC(){
-  // Format player stats holder for SC 
-  formatForSC = [];
-  
-  lrmaxStatKeys.forEach((key, index) => {
-    // Lvl storing exception
-    if (key == "maxLvl") {
-      statFormatPart = `LVL ${state.lasrifleStats.maxLvl}\n`
-    }
-    else {
-      // Remove 'max' and capitalize. Ex: maxRatk -> ATK
-      statName = key.substring(3).toUpperCase();
-
-      // Formatted stat line. Ex: ATK: ratk/maxRatk
-      statFormatPart = `${statName}: ${state.lasrifleStats[statName.toLowerCase()]}/${state.lasrifleStats[key]}\n`;
-    }
-
-    // Push to holder for holding all formatted strings
-    formatForSC.push(statFormatPart);
-  });
-  //log(formatForSC);
-
-  // Fetch the "Las-Rifle" card
-  const LasRifle = storyCards.find(sc => sc.title === "Las-Rifle");
-
-  // Convert holder to string, clean commas, and finally store to sc entry
-  LasRifle.entry = String(formatForSC).replace(/,/g, '');
-}
-
-// RETRIEVE data from sc and store to lasriflestats
-function retrieveLasRifleFromSC(){
-  const lrstatMappings = {
-    //lvl: 'maxLvl',
-    hp: 'maxHp',
-    ammo: 'maxAmmo',
-    
-  };
-  
-  //Fetch SC
-  const LasRifle = storyCards.find(sc => sc.title === "Las-Rifle");
-
-  // Retrieve and split sc entry into array of stat lines
-  const statEntries = LasRifle.entry.split("\n"); //arr of strings
-
-  // Loop through each stat line in array and extract values
-  statEntries.forEach(entry => {
-    // Lvl retrieval exception
-    const lvlMatch = entry.trim().match(/^(?:LVL|LEVEL)\s*[:\-]?\s*(\d+)$/i);
-    if (lvlMatch) {
-      state.lasrifleStats.maxLvl = Number(lvlMatch[1]);
-      return; // Skip lvl match when found
-    }
-    
-    // Match and extract (statname, stat, maxStat)
-    const match = entry.trim().match(/^([a-zA-Z]+)\s*:\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
-    log("stat sc match: " + match); // ATK: ratk/maxRatk
-
-    //Store value in holder
-    if (match) {
-      const statName = match[1].toLowerCase();  // stat name (Ex: 'ratk')
-      const statValue = Number(match[2]);    // current stat value (Ex: '50')
-      const maxStatValue = Number(match[3]); // max stat value (Ex: '100')
-
-      // Finally store stat and max stat in the lasrifleStats if name is valid
-      if (lrstatMappings[statName]) { //Ex: lrstatMappings[ratk] = 'maxRatk'
-        //OR operator safeguards against null values    
-        state.lasrifleStats[statName] = statValue ?? state.lasrifleStats[statName];
-        state.lasrifleStats[lrstatMappings[statName]] = maxStatValue ?? state.lasrifleStats[lrstatMappings[statName]];
-      }
-    }
-  });
-
-  log(state.lasrifleStats);
-}
-
-// Function to increment the player's stats
-function statUp(statName,incAmt){
-  // Ensure incAmt is a number
-  if(typeof incAmt !== "number"){
-    incAmt = 0;
-  }
-  incAmt = Number(incAmt);
-  incAmt = Math.round(incAmt * 100) / 100;
-  log("incAmt: " + incAmt + " " + statName);
-
-  //Intialize incAmt trackers for logging
-  preModIncAmt = incAmt;
-  scaledIncAmt = incAmt;
-
-
-  //Get maxstat string key Ex: maxATK
-  maxStatName = "max" + statName.charAt(0).toUpperCase() + statName.slice(1);
-  
-  //Save current stat
-  stat = state.lasrifleStats[statName];
-  log("stat: " + stat);
-
-  // Exception: Extra hp,ammo,shld shouldnt lvl up player, simply increment available value
-  if(statName == "hp" || statName == "ammo" || statName == "shld"){
-    state.lasrifleStats[statName] += incAmt;
-
-    //Only two decimal places
-    state.lasrifleStats[statName] = Math.round(state.lasrifleStats[statName] * 100) / 100;
-
-    //No overflow for hp, ammo, shld
-    if(state.lasrifleStats[statName] > state.lasrifleStats[maxStatName]){
-      state.lasrifleStats[statName] = state.lasrifleStats[maxStatName];
-    }
-
-    // Fetch the "Las-Rifle" card and log stat changes in description
-    const LasRifle = storyCards.find(sc => sc.title === "Las-Rifle");
-    if (incAmt >= 0) { sign = "⬆️" }
-    if (incAmt < 0) { sign = "🔻" }
-    LasRifle.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} :  ${stat} → ${state.lasrifleStats[statName]} (Modded: ${incAmt}, Raw: ${preModIncAmt})\n` + LasRifle.description;
-  }
-  else{
-    //Formula which decreases value of exp the higher your level and gets the new stat value after exp gain. (stat + incAmt*PercentReduction)
-    //New stat after exp scaling formula
-    newStat = stat + incAmt * (1.32 * Math.exp(-0.02 * stat));
-
-    // Get scaled incAmt for logging
-    scaledIncAmt = incAmt * (1.32 * Math.exp(-0.02 * stat));
-    scaledIncAmt = Math.round(scaledIncAmt*100)/100;
-    log("scaledIncAmt: " + scaledIncAmt);
-
-    // Two decimal places only
-    newStat = Math.round(newStat * 100) / 100;
-    log("newStat: " + newStat);
-    // todo: fix rounding at very high levels
-    // Update the player stat to its new stat
-    state.lasrifleStats[statName] = newStat;
-
-    // Stat cant pass max stat so it overflows, get the overflow if it exists
-    overflow = state.lasrifleStats[statName] - state.lasrifleStats[maxStatName];
-    overflow = Math.round(overflow * 100) / 100;
-    log("overflow: " + overflow);
-
-    // Fix stat to not pass maxstat
-    if(state.lasrifleStats[statName] > state.lasrifleStats[maxStatName]){
-      state.lasrifleStats[statName] = state.lasrifleStats[maxStatName];
-    };
-
-    // Fetch the "Las-Rifle" card and log stat changes in description
-    const LasRifle = storyCards.find(sc => sc.title === "Las-Rifle");
-    if (incAmt >= 0) { sign = "⬆️" }
-    if (incAmt < 0) { sign = "🔻" }
-    LasRifle.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} :  ${stat} → ${state.lasrifleStats[statName]} (Scaled: ${scaledIncAmt}, Modded: ${incAmt}, Raw: ${preModIncAmt})\n` + LasRifle.description;
-
-    //If there is positive stat overflow, pass it to player EXP
-    if(overflow > 0){
-      // Get current max level
-      level = state.lasrifleStats.maxLvl;
-      log("level: " + level);
-
-      // Scale overflow and add to EXP (Must scale overflow to account when player is high level but has a low stat which will overflow too much to EXP)
-      state.lasrifleStats.exp = state.lasrifleStats.exp + (100 * overflow * (1.32 * Math.exp(-0.02 * level)));
-
-      // Round to two decimal places
-      state.lasrifleStats.exp = Math.round(state.lasrifleStats.exp * 100) / 100;
-      log("state.lasrifleStats.exp: " + state.lasrifleStats.exp);
-      
-      //When maxEXP is reached, increment plr level and reset EXP to 0
-      if(state.lasrifleStats.exp >= state.lasrifleStats.maxExp){
-        // Calculate amt of times to increment LVL based on EXP
-        lvlIncrement = Math.floor(state.lasrifleStats.exp/state.lasrifleStats.maxExp);
-        log("lvlIncrement: " + lvlIncrement);
-
-        // Calculate leftover EXP
-        leftoverExp = 100 * (state.lasrifleStats.exp/state.lasrifleStats.maxExp - lvlIncrement);
-        log("leftoverExp: " + leftoverExp);
-        
-        // Increment LVL
-        state.lasrifleStats.maxLvl += lvlIncrement;
-
-        // Reset EXP to 0 and add leftover exp
-        state.lasrifleStats.exp = 0 + leftoverExp;
-        state.lasrifleStats.exp = Math.round(state.lasrifleStats.exp * 100) / 100;
-
-        // Fetch the "Las-Rifle" card and leave update in description
-        const LasRifle = storyCards.find(sc => sc.title === "Las-Rifle");
-        LasRifle.description = `Log ${state.turnCount} | LVL ${level} → ${state.lasrifleStats.maxLvl}\n` + LasRifle.description;
-
-        // Since player has leveled up, increase all max stats
-        lrmaxStatKeys.forEach((key) => {
-          //Get mod key
-          lrStatKey = key.slice(3); // Remove "max"
-          modName = lrStatKey.toLowerCase() + "Mod";
-          
-          // Apply max stat changes
-          if(key == "maxHp"){
-            state.lasrifleStats[key] += 5 
-          }
-          else if(key == "maxShld"){
-            state.lasrifleStats[key] += 5 
-          
-          }
-          else{
-            if(key != 'maxLvl' && key != 'maxExp'){
-              state.lasrifleStats[key] += 5
-            }
-          }
-
-          //Two decimal places
-          state.lasrifleStats[key] = Math.round(state.lasrifleStats[key]*100)/100;
-        });
-
-      } // End of level up
-    } //end of positive overflow
-  }
-
-  storeLasRifleToSC(); 
-}
-
-
-
-/////////////////////////////////////////////////////////////////////////////////////
-
 // Initialize player inventory
 state.playerInv = state.playerInv || {
   item: [],
@@ -3787,7 +3152,7 @@ function detectStoreInv(text) {
   dialogueCheck = true;
   textLower = text.toLowerCase();
   dialoguePhrases.forEach(phrase => {
-     if (textLower.includes(phrase.toLowerCase())) {
+    if (textLower.includes(phrase.toLowerCase())) {
       // Disable check dialoguing exists
       dialogueCheck = false;
     }
@@ -3800,7 +3165,7 @@ function detectStoreInv(text) {
     equipTextInput = findTargetsThenSplit(newText, invWords, equipTextInput, true);
     //equipTextInput = findTargetsThenSplit(text,equipWords,equipTextInput,true);
     console.log("equipTextInput: " + equipTextInput);
-  
+
 
     // If there are inventory words, check for "you equip" in words arr using indices
     if (equipTextInput != null) {
@@ -3808,12 +3173,12 @@ function detectStoreInv(text) {
       allEquipWordIndices = [];
       allEquipWordIndices = indicesOfTargets(equipTextInput, equipWords);
       log("allEquipWordIndices: " + allEquipWordIndices);
-    
+
 
       // If "you" is found within x indices of equip words, start equip process
       if (allEquipWordIndices != null) {
         startEquip = checkYouBeforeIndicesArr(equipTextInput, allEquipWordIndices, 3) || checkAndBeforeIndicesArr(equipTextInput, allEquipWordIndices, 2);
-        log("startEquip:" + startEquip); 
+        log("startEquip:" + startEquip);
       }
     }
   }
@@ -3971,7 +3336,7 @@ function detectStoreInv(text) {
 
       // Initialize holder for item tokens
       itemNameParts = [];
-      
+
       // Find last index that passes weight threshold to know when last item tokens will be stored
       for (let i = potentialItem.weights.length - 1; i >= 0; i--) {
         if (potentialItem.weights[i] >= 4) {
@@ -4015,34 +3380,34 @@ function detectStoreInv(text) {
             }
 
             // Get index if already existing item in player inv 
-        alreadyItemIndex = [];
+            alreadyItemIndex = [];
             alreadyItemIndex = indicesOf(state.playerInv.item, finalItemName);
 
             // Increment item amt if already existing in inv
             if (alreadyItemIndex) {
               state.playerInv.amt[alreadyItemIndex] += itemAmt;
               state.msgHolder = state.msgHolder + `🎒 +${itemAmt} ${state.playerInv.item[alreadyItemIndex]}\n`;
-        }
+            }
             else {
               // Else new item is stored
               state.playerInv.item.push(finalItemName);
               state.playerInv.amt.push(itemAmt);
               state.msgHolder = state.msgHolder + `🎒 +${itemAmt} ${finalItemName}\n`;
-        }
+            }
           }
         }
       });
 
       //Update SC
-        storeInvToSC();
+      storeInvToSC();
 
-        //TODO: Diversify text appendment
-        return text = text + " It remains in your possession."
+      //TODO: Diversify text appendment
+      return text = text + " It remains in your possession."
 
     }//end of filtered array not empty
-  
+
   }//end of start equip
-  
+
   return text;
 }
 
@@ -4092,15 +3457,15 @@ function createIfNoSkillSC(){
     const skillSC = storyCards.find(sc => sc.title === "Player Skills")   
     skillSC.description = "Format for Modifying: SkillName (LVL) (MP), etc.";
 
-    //Psyker, Medic, Swordsmen, Tech, Tank, Marksman, Reload, Custom
+    //Mage, Healer, Swordsmen, Priest, Tank, Paladin, Hero, Custom
     //Classes and the skills they start with
-    newClassSkills('psyker',beginnerPsykerSpells);
-    newClassSkills('medic',beginnerMedicSkills);
+    newClassSkills('mage',beginnerMageSpells);
+    newClassSkills('healer',beginnerHealerSkills);
     newClassSkills('swordsmen',beginnerSwordsmanSkills);
-    newClassSkills('tech',TechSkills);
+    newClassSkills('priest',beginnerPriestSkills);
     newClassSkills('tank',beginnerTankSkills);
-    newClassSkills('marksman',MarksmanSkills);
-    newClassSkills('reload',ReloadSkills);
+    newClassSkills('paladin',beginnerPaladinSkills);
+    newClassSkills('hero',beginnerHeroSkills);
 
   } 
 }
@@ -4232,7 +3597,7 @@ function createIfNoTalentSC(){
 
     //Fetch SC and give it a description
     const talentSC = storyCards.find(sc => sc.title === "Player Talents")   
-   talentSC.description = "Format for Modifying: Talent Name (LVL) (EP), etc.";
+    talentSC.description = "Format for Modifying: Talent Name (LVL) (EP), etc.";
 
   } 
 }
@@ -4433,7 +3798,7 @@ function talentLearningProcess(text){
             state.potentialTalents.exp[i] -= state.points.outpaced;
           }
 
-           //Energy cost determined by AI output, unlock on output function
+          //Energy cost determined by AI output, unlock on output function
           state.askEnergyCost = true;
           log("askEnergyCost in: "+ state.askEnergyCost);
           
@@ -4464,7 +3829,7 @@ function getEnergyCost(text){
     // Convert to numbers to number type
     let arrEnergyValue = numbers ? numbers.map(Number) : [];
 
-   // Filter out 100 for x/100 AI outputs
+    // Filter out 100 for x/100 AI outputs
     if(arrEnergyValue.length > 1){
       arrEnergyValue = arrEnergyValue.filter(value => value != 100);
     }
@@ -5202,7 +4567,6 @@ function detectAttack(text){
   return text;
 }
 
-
 function detectRangedattack(text){
   startRangedattack = false;
     
@@ -5216,19 +4580,19 @@ function detectRangedattack(text){
     }
   });
 
-  //If player is not dialoguing, check input for ratk words and split the input
+  //If player is not dialoguing, check input for atk words and split the input
   if(dialogueCheck == true){
     rangedattackTextInput = []
-    rangedattackTextInput = findTargetsThenSplit(text,rangedattackwords,rangedattackTextInput,true);
+    rangedattackTextInput = findTargetsThenSplit(text,rangedattackWords,rangedattackTextInput,true);
     console.log("rangedattackTextInput simplified: " + rangedattackTextInput);
 
-    //If input has ratk words get their indices
+    //If input has atk words get their indices
     if(rangedattackTextInput != null){
       allRangedattackWordIndices = [];
-      allRangedattackWordIndices = indicesOfTargets(rangedattackTextInput,rangedattackwords);
+      allRangedattackWordIndices = indicesOfTargets(rangedattackTextInput,rangedattackWords);
       log("allRangedattackWordIndices:" + allRangedattackWordIndices);
 
-      //Detect if there is  you + ratk or and + ratk
+      //Detect if there is  you + atk or and + atk
       if(allRangedattackWordIndices != null){
         startRangedattack = checkYouBeforeIndicesArr(rangedattackTextInput,allRangedattackWordIndices,3) || checkAndBeforeIndicesArr(rangedattackTextInput,allRangedattackWordIndices,2);
         log("startRangedattack: "+ startRangedattack)
@@ -5237,10 +4601,11 @@ function detectRangedattack(text){
   }
 
   if(startRangedattack){
-    // Get the player's ranged attack and speed stats
+    // Get the player's attack and speed stats
     plrRatk = state.playerStats.ratk;
     plrSpd = state.playerStats.spd;
-    // Define ranged attack strength ranges with corresponding ranged attack messages
+
+    // Define attack strength ranges with corresponding attack messages
     const ratkRanges = [
       { min: 0, max: 10, ratk: rangedattackTier1 },
       { min: 10, max: 20, ratk: rangedattackTier2 },
@@ -5270,31 +4635,33 @@ function detectRangedattack(text){
     ];
 
 
-    // Calculate ammunition requirements for a ranged attack
-    ratkAmmoLoss = (-1)
-    
-    log("ratk ammunition loss: " + ratkAmmoLoss);
+    // Calculate energy requirements for attack
+    ratkEnergyLoss = (2 * (plrRatk/10) + randomInt(0,5)) * -1;
+    if(plrRatk > 100){
+      ratkEnergyLoss = (20 + plrRatk/25) * -1;
+    }
+    log("Ratk energy loss: " + ratkEnergyLoss);
 
     // Attack energy check defaults to false
-    ratkAmmoCheck = false;
+    ratkEnergyCheck = false;
     // If player has enough energy, turn on check
-    if (state.lasrifleStats.ammo >= Math.abs(ratkAmmoLoss) && state.lasrifleStats.ammo >= 0) {
-      ratkAmmoCheck = true;
+    if (state.playerStats.ep >= Math.abs(ratkEnergyLoss) && state.playerStats.ep >= 0) {
+      ratkEnergyCheck = true;
     }
-    log("ratkAmmoCheck: " + ratkAmmoCheck);
+    log("ratkEnergyCheck: " + ratkEnergyCheck);
 
-    // If player does not have enough energy to make a ranged ranged attack
-    if(!ratkAmmoCheck){
-      text = text + ` *click*, you're out of ammunition.`
+    // If player does not have enough energy to attack
+    if(!ratkEnergyCheck){
+      text = text + ` *Click* your weapon is out of ammunition.`
       //todo: expand text
     }
 
-    // If player has enough energy to make a ranged ranged attack, execute the ranged ranged attack
-    if (ratkAmmoCheck) {
+    // If player has enough energy to attack, execute the attack
+    if (ratkEnergyCheck) {
       // Check the player's speed range and create a message based on their speed
       for (let range of spdRanges) {
         if (plrSpd >= range.min && plrSpd < range.max) {
-          // Append the speed message to the ranged ranged attack text
+          // Append the speed message to the attack text
           text = text + ` ${range.spd[randomInt(0, range.spd.length - 1)]}`;
 
           // Attacking grants SPD exp
@@ -5303,27 +4670,27 @@ function detectRangedattack(text){
         }
       }
 
-      // Check the player's ranged attack range/strength, check energy requirement, and save ranged attack text
+      // Check the player's attack range/strength, check energy requirement, and save attack text
       for (let range of ratkRanges) {
         if (plrRatk >= range.min && plrRatk < range.max) {
-          // Save the ranged attack message based on the ranged attack strength
+          // Save the attack message based on the attack strength
           text = text + ` and ${range.ratk[randomInt(0, range.ratk.length - 1)].toLowerCase()}`;
 
-          // Attacking grants ATK exp
+          // Attacking grants RATK exp
           statUp("ratk", randomFloat(0.01, 1));
 
           break;
         }
       }
 
-      // Apply energy loss from ranged attack
-      statUp("ammo", ratkAmmoLoss);
+      // Apply energy loss from attack
+      statUp("ep", ratkEnergyLoss);
 
-      // Determine if the ranged attack has a luck modifier
+      // Determine if the attack has a luck modifier
       ratkLuckRoll = randomInt(1, 100); // Generate a random luck roll between 1 and 100
       log("ratkLuckRoll: " + ratkLuckRoll); // Log the luck roll for debugging
 
-      if (ratkLuckRoll <= state.lasrifleStats.lck && ratkLuckRoll >= 1) {
+      if (ratkLuckRoll <= state.playerStats.lck && ratkLuckRoll >= 1) {
         // If the luck roll is within the player's luck range, append a lucky phrase to the text
         text = text + ` ${graspPhrases[randomInt(0, graspPhrases.length - 1)]} ${luckyPhrases[randomInt(0, luckyPhrases.length - 1)]}.`;
 
@@ -5332,7 +4699,7 @@ function detectRangedattack(text){
       }
 
 
-      storeLasRifleToSC();
+      storeStatsToSC();
     } // End of has ratk energy
   } // End of startRangedattack
 
@@ -5351,13 +4718,13 @@ function testHurt(hurtType, dmg, text) {
     // Apply damage to the player's HP stat
     statUp("hp", dmg);   
     
-     // Find the "Player Stats" card to log the damage information
+    // Find the "Player Stats" card to log the damage information
     const statSC = storyCards.find(sc => sc.title === "Player Stats");
 
     // Match the text with the pattern and fetch the matching portion (if any)
     const matchText = text.match(matchedPattern);
 
-   // If the "Player Stats" card exists and we have matched text, log the damage details
+    // If the "Player Stats" card exists and we have matched text, log the damage details
     if (statSC && matchText) {
       // Add a new log entry to the Player Stats card, indicating the output count and damage reason
       statSC.description = `Log ${state.turnCount} | Dmg Reason: ${matchText}\n` + statSC.description;
@@ -5660,4 +5027,3 @@ function detectScout(text){
   
   return text;
 }
-
