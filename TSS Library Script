@@ -3099,19 +3099,20 @@ function warnPlayerHealth(text){
 //Initialize weapon modifiers
 state.weaponModifiers = state.weaponModifiers || {
   ammoMod: 0,
-  
+  condMod: 0,
 };
 
 const weaponMods = {
   lasrifle: {
     ammoMod: 0,
+    condMod: 0,
   },
   
 };
 
-weaponmodKeys = ["ammoMod"];
+weaponmodKeys = ["ammoMod", "condMod"];
 weaponNames = ["lasrifle"];
-weaponStatKeysForMod = ["ammo"];
+weaponStatKeysForMod = ["ammo", "cond"];
 
 
 //CREATE new sc with Weapon Modifiers if sc doesnt exist
@@ -3252,7 +3253,7 @@ function newLasrifleStats(){
   state.lasrifleStats.maxAmmo = 50
 
   // Player starts at full health
-  state.lasrifleStats.cond = state.lasrifleStats.maxHp;
+  state.lasrifleStats.cond = state.lasrifleStats.maxCond;
   state.lasrifleStats.ammo = state.lasrifleStats.maxAmmo;
 
 }
