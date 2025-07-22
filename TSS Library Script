@@ -10,10 +10,10 @@
 //
 
 // This function runs the library hook
-onLibrary_TAS();
+onLibrary_TSS();
 
 // LIBRARY HOOK
-function onLibrary_TAS() {
+function onLibrary_TSS() {
   // UNLOCK SCRIPT FOR DEBUG (Comment out to turn off)
   state.startScript = true;
   log("state.startScript: " + state.startScript);
@@ -32,14 +32,14 @@ function onLibrary_TAS() {
 }
 
 // INPUT HOOK
-function onInput_TAS(text) {
+function onInput_TSS(text) {
   //Check for unlocking
   text = unlockScript(text);
 
   //Check for locking
   text = lockScript(text);
 
-  helpCommandInput_TAS(text);
+  helpCommandInput_TSS(text);
 
   //Unlocking runs main()
   if (state.startScript == true && info.actionCount >= 0) {
@@ -92,15 +92,15 @@ function onInput_TAS(text) {
 }
 
 // CONTEXT HOOK
-function onContext_TAS(text){
+function onContext_TSS(text){
   text = removeAngleText(text);
   
   return text;
 }
 
 // OUTPUT HOOK
-function onOutput_TAS(text) {
-  text = helpCommandOutput_TAS(text);
+function onOutput_TSS(text) {
+  text = helpCommandOutput_TSS(text);
 
   // start of main()
   if (state.startScript == true && info.actionCount >= 0) {
@@ -1586,9 +1586,9 @@ function lockScript(key){
 }
 
 //detect /help and display help
-function helpCommandInput_TAS(text){
+function helpCommandInput_TSS(text){
   if(text.includes("/help stats")){
-    state.commandCenter_TAS = 
+    state.commandCenter_TSS = 
     `
     <<
     📊 Player Stats Guide
@@ -1617,7 +1617,7 @@ function helpCommandInput_TAS(text){
     `
   }
   else if(text.includes("/help talents")){
-    state.commandCenter_TAS = 
+    state.commandCenter_TSS = 
     `
     <<
     🎯 Talent System Guide
@@ -1636,7 +1636,7 @@ function helpCommandInput_TAS(text){
     `
   }
   else if(text.includes("/help skills")){
-    state.commandCenter_TAS = 
+    state.commandCenter_TSS = 
     `
     <<
     🎯 Skills System Guide
@@ -1652,7 +1652,7 @@ function helpCommandInput_TAS(text){
   }
   
   else if (text.includes("/help inventory")) {
-  state.commandCenter_TAS = 
+  state.commandCenter_TSS = 
   `
   <<
   📦 Inventory Help
@@ -1664,7 +1664,7 @@ function helpCommandInput_TAS(text){
   `
   }
   else if (text.includes("/help actions")) {
-    state.commandCenter_TAS = 
+    state.commandCenter_TSS = 
     `
     <<
     🎬 Action System Help
@@ -1688,7 +1688,7 @@ function helpCommandInput_TAS(text){
     `
   }
   else if (text.includes("/help keywords")) {
-    state.commandCenter_TAS = 
+    state.commandCenter_TSS = 
     `
     <<
     🔎 talentWords:\n${talentWords}
@@ -1705,7 +1705,7 @@ function helpCommandInput_TAS(text){
     `
   }
   else if (text.includes("/help")) {
-    state.commandCenter_TAS = 
+    state.commandCenter_TSS = 
     `
     <<
     TRUE AUTO STATS RPG SCRIPT BY Yi1i1i
@@ -1725,11 +1725,11 @@ function helpCommandInput_TAS(text){
   //todo: clear command from text
 }
 
-function helpCommandOutput_TAS(text){
-  if(state.commandCenter_TAS){
-    text = state.commandCenter_TAS;
+function helpCommandOutput_TSS(text){
+  if(state.commandCenter_TSS){
+    text = state.commandCenter_TSS;
   }
-  delete state.commandCenter_TAS
+  delete state.commandCenter_TSS
   return text;
 }
 
@@ -3295,6 +3295,9 @@ function storeLasrifleToSC(){
 
   // Fetch the "Lasrifle" card
   const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
+
+   // Add burst fire mode status to display
+  formatForSC.push(`Burst Fire Mode: ${state.lasrifleStats.burstFireMode ? "ON" : "OFF"}\n`);
 
   // Convert holder to string, clean commas, and finally store to sc entry
   lasrifleSC.entry = String(formatForSC).replace(/,/g, '');
@@ -4908,6 +4911,13 @@ function detectRangedattack(text){
     rangedattackTextInput = findTargetsThenSplit(text,rangedattackWords,rangedattackTextInput,true);
     console.log("rangedattackTextInput simplified: " + rangedattackTextInput);
 
+    // Toggle burst fire mode if keyword present
+    if (text.toLowerCase().includes("burst fire")) {
+      state.lasrifleStats.burstFireMode = !state.lasrifleStats.burstFireMode;
+      // Optionally log or append text
+      log("Burst Fire Mode toggled: " + state.lasrifleStats.burstFireMode);
+    }
+
     //If input has  ranged atk words get their indices
     if(rangedattackTextInput != null){
       allRangedattackWordIndices = [];
@@ -4958,14 +4968,13 @@ function detectRangedattack(text){
 
 
     // Calculate ammo requirements for ranged attack
-    ratkAmmoLoss = -1
-    
-    log("Ratk ammo loss: " + ratkAmmoLoss);
+    let ratkAmmoCost = state.lasrifleStats.burstFireMode ? -3 : -1;
+    log("Ratk ammo cost: " + ratkAmmoCost);
 
     // Ranged attack energy check defaults to false
     ratkAmmoCheck = false;
     // If player has enough energy, turn on check
-    if (state.lasrifleStats.ammo >= Math.abs(ratkAmmoLoss) && state.lasrifleStats.ammo >= 0) {
+    if (state.lasrifleStats.ammo >= Math.abs(ratkAmmoCost) && state.lasrifleStats.ammo >= 0) {
       ratkAmmoCheck = true;
     }
     log("ratkAmmoCheck: " + ratkAmmoCheck);
@@ -5003,8 +5012,8 @@ function detectRangedattack(text){
         }
       }
 
-      // Apply energy loss from ranged attack
-      statUp("ammo", ratkAmmoLoss);
+      // Apply ammunition cost from ranged attack
+      statUp("ammo", ratkAmmoCost);
 
       // Determine if the ranged attack has a luck modifier
       ratkLuckRoll = randomInt(1, 100); // Generate a random luck roll between 1 and 100
