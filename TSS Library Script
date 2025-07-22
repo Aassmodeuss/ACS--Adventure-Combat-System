@@ -51,7 +51,9 @@ function onInput_TAS(text) {
     createIfNoInvSC();
     createIfNoTalentSC();
     createIfNoSkillSC();
-    createIfNoModifierSC();    
+    createIfNoModifierSC();        
+    createIfNoLasrifleSC();    
+    createIfNoWeaponmodSC();    
 
     //Updates codebase if player edits their storage SCs
     retrieveStatsFromSC();
@@ -59,6 +61,8 @@ function onInput_TAS(text) {
     retrieveSkillsFromSC();
     retrieveInvFromSC();
     retrieveModifiersFromSC();
+    retrieveLasrifleFromSC();
+    retrieveWeaponmodsFromSC();
 
     text = detectStoreInv(text);
 
@@ -109,6 +113,8 @@ function onOutput_TAS(text) {
     createIfNoTalentSC();
     createIfNoSkillSC();
     createIfNoModifierSC();
+    createIfNoLasrifleSC();
+    createIfNoWeaponmodSC();
 
     //End of skill learning process. Do not disturb talent storage beforehand.
     text = getEnergyCost(text);
@@ -140,6 +146,16 @@ function onOutput_TAS(text) {
     retrieveModifiersFromSC()
     //Final mods store back to SC in correct formatting
     storeModifiersToSC();
+    
+    //Updates Lasrifle in code if player edits Lasrifle in SC
+    retrieveLasrifleFromSC();
+    //Final stats store back to SC in correct formatting
+    storeLasrifleToSC();
+    
+    //Updates weapon mods in code if player edits their weapon mods in SC
+    retrieveWeaponmodsFromSC()
+    //Final mods store back to SC in correct formatting
+    storeWeaponmodsToSC();
     
     state.message = state.msgHolder;
     state.msgHolder = "";
@@ -3080,6 +3096,311 @@ function warnPlayerHealth(text){
 
 /////////////////////////////////////////////////////////////////////////////////////
 
+//Initialize weapon modifiers
+state.weaponModifiers = state.weaponModifiers || {
+  ammoMod: 0,
+  
+};
+
+const weaponMods = {
+  lasrifle: {
+    ammoMod: 0,
+  },
+  
+};
+
+weaponmodKeys = ["ammoMod"];
+weaponNames = ["lasrifle"];
+weaponStatKeysForMod = ["ammo"];
+
+
+//CREATE new sc with Weapon Modifiers if sc doesnt exist
+function createIfNoWeaponmodSC(){
+  if (!storyCards.find(sc => sc.title === "Weapon Modifiers")) {
+    // If "Weapon Modifiers" card doesn't exist, create it
+    addStoryCard("Weapon Modifiers", "Blank", "Weapons");
+
+    plrWeapon = "lasrifle";
+
+    // Fetch the "Weapon Modifiers" card
+    const weaponmodSC = storyCards.find(sc => sc.title === "Weapon Modifiers");
+    weaponmodSC.description = `Format for Modifying: Modifier: num\nModifiers influence your starting stats and modify the exp you receive.\nYour race is ${capitalizeFirst(plrWeapon)}.`;
+
+    //Set weapon modifier values in SC based on weapon
+    weaponmodKeys.forEach(key => {
+      state.weaponModifiers[key] = weaponMods[plrWeapon][key];
+    });
+
+    // Apply initial weapon mods to stats and display them to sc
+    weaponStatKeysForMod.forEach(key => {
+      // Modify normal stat
+      temp1 = state.lasrifleStats[key] * state.weaponModifiers[key + "Mod"]/100;
+      state.lasrifleStats[key] = state.lasrifleStats[key] + temp1;
+      state.lasrifleStats[key] = Math.round(state.lasrifleStats[key] * 100) / 100;
+
+      // Modify max stats
+      maxKey = "max" + capitalizeFirst(key);
+      temp2 = state.lasrifleStats[maxKey] * state.weaponModifiers[key + "Mod"]/100;
+      state.lasrifleStats[maxKey] = state.lasrifleStats[maxKey] + temp2;
+      state.lasrifleStats[maxKey] = Math.round(state.lasrifleStats[maxKey] * 100) / 100;
+
+    });
+
+    storeLasrifleToSC();
+  }
+}
+
+//STORES and displays the modifiers to player in sc
+function storeWeaponmodsToSC(){
+  //Format player modifiers holder for SC 
+  formatForSC = [];
+  
+  weaponmodKeys.forEach((key, index) => {
+    const weaponmodName = key.replace("Mod","").toUpperCase();  //ATK
+    const weaponmodFormatPart = `${weaponmodName} Modifier: ${state.weaponModifiers[key]}%\n`; //ATK Modifier: 0%
+
+    //Holder to hold all formatted strings
+    formatForSC.push(weaponmodFormatPart);
+  });
+  //log(formatForSC);
+
+  // Fetch the "Weapon Modifiers" card
+  const weaponmodSC = storyCards.find(sc => sc.title === "Weapon Modifiers");
+
+  //Convert holder to string, clean commas, and finally store to sc entry
+  weaponmodSC.entry = String(formatForSC).replace(/,/g, '');
+
+  // Trim notes on char limit to prevent memory overfill
+  if (weaponmodSC.description.length > 3000) {
+    halfIndex = Math.floor(weaponmodSC.description.length / 2);
+    weaponmodSC.description = weaponmodSC.description.slice(0, halfIndex);
+
+    console.log("Trimming weaponmodSC description to prevent memory overload.");
+  }
+}
+
+//RETRIEVE data from sc and store to Weapon Modifiers
+function retrieveWeaponmodsFromSC(){
+  // Fetch the "Weapon Modifiers" card
+  const weaponmodSC = storyCards.find(sc => sc.title === "Weapon Modifiers");
+
+  // Retrieve and split sc entry into (modName, value) lines
+  const weaponmodEntries = weaponmodSC.entry.split("\n"); //arr of strings
+
+  //Loop through each line of entry from the split and extract values
+  weaponmodEntries.forEach(entry => {
+      // Match and extract stat and max stat values using regex
+      const match = entry.trim().match(/^([A-Z]+)\s+Modifier:\s*(-?\d+(?:\.\d+)?)(?:%)?$/);
+      //log("mod sc match: " + match);
+
+      //Store value in holder
+      if (match) {
+        weaponmodName = match[1].toLowerCase() + 'Mod'; // e.g., "HP"
+        weaponmodValue = Number(match[2]); // e.g., 0
+
+        // Finally store modValue in playerModifier
+        //OR operator safeguards against null values    
+        state.weaponModifiers[weaponmodName] = modValue ?? state.weaponModifiers[weaponmodName];
+        
+      }
+  });
+
+  //log(state.weaponModifiers);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+
+
+//Initialize Lasrifle stats
+state.lasrifleStats = state.lasrifleStats || {
+
+  cond: 0,
+  ammo: 0,
+
+  
+
+  maxCond: 100,
+  maxAmmo: 50,
+
+};
+
+lrmaxStatKeys = ["maxCond", "maxAmmo",];
+lrStatKeys = ["cond", "ammo",];
+
+
+//NOTE: Players stats will be stored in a sc. CREATE initial stats. RETRIEVE from or STORE to player stats: SC -> <- state.lasriflestats
+
+//Function to create new weapon stats
+function newLasrifleStats(){  
+  //Get max level
+  state.lasrifleStats.maxLvl = 200
+
+  //Loop through each maxstat, and set max stats equal to max level
+  lrmaxStatKeys.forEach((mStat) => {
+    state.lasrifleStats[mStat] = state.lasrifleStats.maxLvl;
+  });
+  
+  //Give weapon initialized stats
+  lrStatKeys.forEach((stat) => {
+    state.lasrifleStats[stat] = randomInt(1,state.lasrifleStats.maxLvl);
+  });
+
+  
+  // Stat scaling
+  state.lasrifleStats.maxCond = 100
+  state.lasrifleStats.maxAmmo = 50
+
+  // Player starts at full health
+  state.lasrifleStats.cond = state.lasrifleStats.maxHp;
+  state.lasrifleStats.ammo = state.lasrifleStats.maxAmmo;
+
+}
+
+//CREATE new sc with lasriflestats if sc doesnt exist
+function createIfNoLasrifleSC(){
+  if (!storyCards.find(sc => sc.title === "Lasrifle")) {
+    // If "Lasrifle" card doesn't exist, create it
+    addStoryCard("Lasrifle", "Blank", "Weapons");
+
+    // Fetch the "Lasrifle" card
+    const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
+    lasrifleSC.description = "Format for Modifying: Stat: num/maxNum";
+
+    //Initialize and randomize new Lasrifle stats
+    newLasrifleStats();
+
+    storeLasrifleToSC();
+  }
+}
+
+// STORES and displays the stats to player in sc
+function storeLasrifleToSC(){
+  // Format player stats holder for SC 
+  formatForSC = [];
+  
+  lrmaxStatKeys.forEach((key, index) => {
+  // Remove 'max' and capitalize. Ex: maxCond -> COND
+  statName = key.substring(3).toUpperCase();
+
+  // Formatted stat line. Ex: COND: cond/maxCond
+  statFormatPart = `${statName}: ${state.lasrifleStats[statName.toLowerCase()]}/${state.lasrifleStats[key]}\n`;
+
+  // Push to holder for holding all formatted strings
+  formatForSC.push(statFormatPart);
+});
+
+//log(formatForSC);
+
+  // Fetch the "Lasrifle" card
+  const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
+
+  // Convert holder to string, clean commas, and finally store to sc entry
+  lasrifleSC.entry = String(formatForSC).replace(/,/g, '');
+
+  // Trim notes on char limit to prevent memory overfill
+  if (lasrifleSC.description.length > 3000) {
+    halfIndex = Math.floor(lasrifleSC.description.length / 2);
+    lasrifleSC.description = lasrifleSC.description.slice(0, halfIndex);
+
+    console.log("Trimming statSC description to prevent memory overload.");
+  }
+}
+
+// RETRIEVE data from sc and store to lasrifle
+function retrieveLasrifleFromSC(){
+  const lrstatMappings = {
+    //lvl: 'maxLvl',
+    cond: 'maxCond',
+    ammo: 'maxAmmo',
+    
+  };
+  
+  //Fetch SC
+  const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
+
+  // Retrieve and split sc entry into array of stat lines
+  const lasrifleEntries = lasrifleSC.entry.split("\n"); //arr of strings
+
+  // Loop through each stat line in array and extract values
+  lasrifleEntries.forEach(entry => {
+    // Lvl retrieval exception
+    const lvlMatch = entry.trim().match(/^(?:LVL|LEVEL)\s*[:\-]?\s*(\d+)$/i);
+    if (lvlMatch) {
+      state.lasrifleStats.maxLvl = Number(lvlMatch[1]);
+      return; // Skip lvl match when found
+    }
+    
+    // Match and extract (statname, stat, maxStat)
+    const match = entry.trim().match(/^([a-zA-Z]+)\s*:\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+    log("stat sc match: " + match); // ATK: ratk/maxRatk
+
+    //Store value in holder
+    if (match) {
+      const statName = match[1].toLowerCase();  // stat name (Ex: 'ratk')
+      const statValue = Number(match[2]);    // current stat value (Ex: '50')
+      const maxStatValue = Number(match[3]); // max stat value (Ex: '100')
+
+      // Finally store stat and max stat in the lasrifleStats if name is valid
+      if (lrstatMappings[statName]) { //Ex: lrstatMappings[ratk] = 'maxRatk'
+        //OR operator safeguards against null values    
+        state.lasrifleStats[statName] = statValue ?? state.lasrifleStats[statName];
+        state.lasrifleStats[lrstatMappings[statName]] = maxStatValue ?? state.lasrifleStats[lrstatMappings[statName]];
+      }
+    }
+  });
+
+  log(state.lasrifleStats);
+}
+
+// Function to increment the lasrifle's stats (cond and ammo only)
+function statUp(statName, incAmt) {
+    // Ensure incAmt is a number
+    if (typeof incAmt !== "number") {
+        incAmt = 0;
+    }
+    incAmt = Number(incAmt);
+    incAmt = Math.round(incAmt * 100) / 100;
+    log("incAmt: " + incAmt + " " + statName);
+
+    // Get maxstat string key Ex: maxCond
+    const maxStatName = "max" + statName.charAt(0).toUpperCase() + statName.slice(1);
+
+    // Save current stat
+    let stat = state.lasrifleStats[statName];
+    log("stat: " + stat);
+
+    // Only allow cond and ammo to be modified
+    if (statName === "cond" || statName === "ammo") {
+        state.lasrifleStats[statName] += incAmt;
+
+        // Only whole numbers for ammo, cond can be decimal if needed
+        if (statName === "ammo") {
+            state.lasrifleStats[statName] = Math.round(state.lasrifleStats[statName]);
+        } else {
+            state.lasrifleStats[statName] = Math.round(state.lasrifleStats[statName] * 100) / 100;
+        }
+
+        // Clamp to max value
+        if (state.lasrifleStats[statName] > state.lasrifleStats[maxStatName]) {
+            state.lasrifleStats[statName] = state.lasrifleStats[maxStatName];
+        }
+        if (state.lasrifleStats[statName] < 0) {
+            state.lasrifleStats[statName] = 0;
+        }
+
+        // Log stat change in Lasrifle card description
+        const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
+        let sign = incAmt >= 0 ? "⬆️" : "🔻";
+        lasrifleSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} :  ${stat} → ${state.lasrifleStats[statName]} (Change: ${incAmt})\n` + lasrifleSC.description;
+    }
+
+    storeLasrifleToSC();
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////
+
 // Initialize player inventory
 state.playerInv = state.playerInv || {
   item: [],
@@ -4580,19 +4901,19 @@ function detectRangedattack(text){
     }
   });
 
-  //If player is not dialoguing, check input for atk words and split the input
+  //If player is not dialoguing, check input for ranged atk words and split the input
   if(dialogueCheck == true){
     rangedattackTextInput = []
     rangedattackTextInput = findTargetsThenSplit(text,rangedattackWords,rangedattackTextInput,true);
     console.log("rangedattackTextInput simplified: " + rangedattackTextInput);
 
-    //If input has atk words get their indices
+    //If input has  ranged atk words get their indices
     if(rangedattackTextInput != null){
       allRangedattackWordIndices = [];
       allRangedattackWordIndices = indicesOfTargets(rangedattackTextInput,rangedattackWords);
       log("allRangedattackWordIndices:" + allRangedattackWordIndices);
 
-      //Detect if there is  you + atk or and + atk
+      //Detect if there is  you + ranged atk or and + ranged atk
       if(allRangedattackWordIndices != null){
         startRangedattack = checkYouBeforeIndicesArr(rangedattackTextInput,allRangedattackWordIndices,3) || checkAndBeforeIndicesArr(rangedattackTextInput,allRangedattackWordIndices,2);
         log("startRangedattack: "+ startRangedattack)
@@ -4601,11 +4922,11 @@ function detectRangedattack(text){
   }
 
   if(startRangedattack){
-    // Get the player's attack and speed stats
+    // Get the player's ranged attack and speed stats
     plrRatk = state.playerStats.ratk;
     plrSpd = state.playerStats.spd;
 
-    // Define attack strength ranges with corresponding attack messages
+    // Define ranged attack strength ranges with corresponding attack messages
     const ratkRanges = [
       { min: 0, max: 10, ratk: rangedattackTier1 },
       { min: 10, max: 20, ratk: rangedattackTier2 },
@@ -4635,29 +4956,27 @@ function detectRangedattack(text){
     ];
 
 
-    // Calculate energy requirements for attack
-    ratkEnergyLoss = (2 * (plrRatk/10) + randomInt(0,5)) * -1;
-    if(plrRatk > 100){
-      ratkEnergyLoss = (20 + plrRatk/25) * -1;
-    }
-    log("Ratk energy loss: " + ratkEnergyLoss);
+    // Calculate ammo requirements for ranged attack
+    ratkAmmoLoss = -1
+    
+    log("Ratk ammo loss: " + ratkAmmoLoss);
 
-    // Attack energy check defaults to false
-    ratkEnergyCheck = false;
+    // Ranged attack energy check defaults to false
+    ratkAmmoCheck = false;
     // If player has enough energy, turn on check
-    if (state.playerStats.ep >= Math.abs(ratkEnergyLoss) && state.playerStats.ep >= 0) {
-      ratkEnergyCheck = true;
+    if (state.lasrifleStats.ammo >= Math.abs(ratkAmmoLoss) && state.lasrifleStats.ammo >= 0) {
+      ratkAmmoCheck = true;
     }
-    log("ratkEnergyCheck: " + ratkEnergyCheck);
+    log("ratkAmmoCheck: " + ratkAmmoCheck);
 
     // If player does not have enough energy to attack
-    if(!ratkEnergyCheck){
+    if(!ratkAmmoCheck){
       text = text + ` *Click* your weapon is out of ammunition.`
       //todo: expand text
     }
 
-    // If player has enough energy to attack, execute the attack
-    if (ratkEnergyCheck) {
+    // If player has enough energy to attack, execute the ranged attack
+    if (ratkAmmoCheck) {
       // Check the player's speed range and create a message based on their speed
       for (let range of spdRanges) {
         if (plrSpd >= range.min && plrSpd < range.max) {
@@ -4670,7 +4989,7 @@ function detectRangedattack(text){
         }
       }
 
-      // Check the player's attack range/strength, check energy requirement, and save attack text
+      // Check the player's ranged attack range/strength, check energy requirement, and save ranged attack text
       for (let range of ratkRanges) {
         if (plrRatk >= range.min && plrRatk < range.max) {
           // Save the attack message based on the attack strength
@@ -4683,10 +5002,10 @@ function detectRangedattack(text){
         }
       }
 
-      // Apply energy loss from attack
-      statUp("ep", ratkEnergyLoss);
+      // Apply energy loss from ranged attack
+      statUp("ammo", ratkAmmoLoss);
 
-      // Determine if the attack has a luck modifier
+      // Determine if the ranged attack has a luck modifier
       ratkLuckRoll = randomInt(1, 100); // Generate a random luck roll between 1 and 100
       log("ratkLuckRoll: " + ratkLuckRoll); // Log the luck roll for debugging
 
@@ -4698,9 +5017,9 @@ function detectRangedattack(text){
         statUp("lck", randomFloat(0.01, 1));
       }
 
-
+      storeLasrifleToSC();
       storeStatsToSC();
-    } // End of has ratk energy
+    } // End of has ratk ammo
   } // End of startRangedattack
 
   return text;
