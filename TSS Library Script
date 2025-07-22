@@ -3,7 +3,7 @@
 // TRUE SCI-Fi STATS (TSS) SCRIPT by Aassmodeuss
 
 // Credits
-  // Yi1i1i - For creating True Auto Stats (TAS) which this entire script is based on
+  // Yi1i1i - For creating True AUto Stats (TSS) which this entire script is based on
   // BinKompliziert - Idea for Capitalization weighting for skill learning
   // jackoneill2443 - Idea for modifying player input to show stat results
   // LewdLeah - General Scripting Knowledge
@@ -3358,7 +3358,7 @@ function retrieveLasrifleFromSC(){
 }
 
 // Function to increment the lasrifle's stats (cond and ammo only)
-function statUp(statName, incAmt) {
+function statUpLasrifle(statName, incAmt) {
     // Ensure incAmt is a number
     if (typeof incAmt !== "number") {
         incAmt = 0;
