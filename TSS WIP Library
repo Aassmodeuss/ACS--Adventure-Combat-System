@@ -62,8 +62,9 @@ function onInput_TSS(text) {
     createIfNoSkillSC();
     createIfNoModifierSC();        
     createIfNoWeaponSC();    
-    createIfNoWeaponmodSC();    
-
+    createIfNoWeaponmodSC();
+    createIfNoEquippedWeaponSC();
+  
     //Updates codebase if player edits their storage SCs
     retrieveStatsFromSC();
     retrieveTalentsFromSC();
@@ -72,6 +73,7 @@ function onInput_TSS(text) {
     retrieveModifiersFromSC();
     retrieveWeaponFromSC();
     retrieveWeaponmodsFromSC();
+    retrieveEquippedWeaponFromSC();
 
     text = detectStoreInv(text);
 
@@ -126,6 +128,7 @@ function onOutput_TSS(text) {
     createIfNoModifierSC();
     createIfNoWeaponSC();
     createIfNoWeaponmodSC();
+    createIfNoEquippedWeaponSC()
 
     //End of skill learning process. Do not disturb talent storage beforehand.
     text = getEnergyCost(text);
@@ -167,7 +170,12 @@ function onOutput_TSS(text) {
     retrieveWeaponmodsFromSC();
     //Final mods store back to SC in correct formatting
     storeWeaponmodsToSC();
-    
+
+   // Retrieve equipped weapon from the "Equipped Gear" category
+   retrieveEquippedWeaponFromSC()
+   // Retrieve equipped weapon from the "Equipped Gear" category
+   retrieveEquippedWeaponFromSC()
+
     state.message = state.msgHolder;
     state.msgHolder = "";
 
@@ -1862,9 +1870,12 @@ function findTargetsThenSplit(text, targetWordsArr, wordsArrHolder, unlocking) {
 function cleanStringCheckForTargets(targetWordsArr, text) {
   if (text == null) {return false};
 
-  text = text.toLowerCase();
-  let cleanText = removeSpecificPunctuation(text);
-  //log(cleanText);
+ let wordsArr = text.replace(/[.,!?]/g, '').replace(/\s+/g, ' ').trim().split(' ');
+const numberWordsRegex = /^(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)$/i;
+if (numberWordsRegex.test(wordsArr[0])) {
+  wordsArr[0] = wordsToNumber(wordsArr[0]).trim();
+}
+let cleanText = wordsArr.join(' ');
 
   // Loop through target words
   for (let target of targetWordsArr) {
@@ -2148,17 +2159,18 @@ function findBestInventoryMatch(input, inventoryItems) {
 
 
 ///////////////////////////START OF WEAPON EQUIP DETECTION///////////////////////////////////////
-//Detect weapon equip commands like "draw my [weapon]" or "holster my [weapon]"
-//Also detects "return my [weapon] to (its|the) holster" and
-
+  //Detects equip/unequip commands and updates the Equipped Weapon story card.
+  
 function detectWeaponEquip(text) {
+    // Normalize input for matching
+    let cleanText = text.toLowerCase();
+
     // Get inventory items from Player Inventory story card
     const invSC = storyCards.find(sc => sc.title === "Player Inventory");
     let inventoryItems = [];
     if (invSC && invSC.entry) {
         let matches = invSC.entry.matchAll(/(.+?)\s*\(.*?(\d+(?:\.\d+)?).*?\)/g);
         for (const match of matches) {
-            // Remove articles and lowercase for matching
             let itemName = match[1].replace(/\b(the|a|an|my|your)\b/gi, '').trim().toLowerCase();
             inventoryItems.push(itemName);
         }
@@ -2167,27 +2179,50 @@ function detectWeaponEquip(text) {
     // Get weapon names from weapon story cards
     let weaponNames = getWeaponNamesFromStoryCards();
 
-    // Automatically select the first weapon in inventory that matches a weapon story card
-    let selectedWeapon = null;
-    for (let invItem of inventoryItems) {
-        for (let weaponName of weaponNames) {
-            if (invItem === weaponName || invItem.includes(weaponName) || weaponName.includes(invItem)) {
-                selectedWeapon = weaponName;
-                break;
-            }
-        }
-        if (selectedWeapon) break;
+    // Check for equip/unequip commands
+    let equipCmd = /(equip|draw|ready|wield|hold|unsheath|arm)\s+([\w\s\-']+)/i;
+    let unequipCmd = /(unequip|holster|put away|stow|sheath|disarm|return)\s+(?:my|your)?\s*([\w\s\-']+)?/i;
+
+    let equippedWeapon = retrieveEquippedWeaponFromSC() || null;
+
+    // Handle unequip
+    if (unequipCmd.test(cleanText)) {
+        storeEquippedWeaponToSC("");
+        state.equippedWeapon = null;
+        state.msgHolder += `You put away your weapon.\n`;
+        return text;
     }
 
-    // Optionally, you can store the selected weapon in state if needed elsewhere
-    state.selectedWeapon = selectedWeapon ? selectedWeapon : null;
+    // Handle equip
+    let equipMatch = cleanText.match(equipCmd);
+    if (equipMatch) {
+        let inputWeapon = equipMatch[2].trim().toLowerCase();
+        // Fuzzy match inventory item to weapon card
+        let bestMatch = findBestInventoryMatch(inputWeapon, inventoryItems.filter(item =>
+            weaponNames.some(w => item.includes(w) || w.includes(item))
+        ));
+        if (bestMatch) {
+            // Find the matching weapon card name
+            let matchedWeapon = weaponNames.find(w => bestMatch.includes(w) || w.includes(bestMatch));
+            if (matchedWeapon) {
+                storeEquippedWeaponToSC(matchedWeapon);
+                state.equippedWeapon = matchedWeapon;
+                state.msgHolder += `You equip your ${matchedWeapon}.\n`;
+                return text;
+            }
+        }
+        state.msgHolder += `You do not have that weapon in your inventory.\n`;
+        return text;
+    }
 
-    // Optionally, append a message if a weapon is found
-    if (selectedWeapon) {
-        state.msgHolder += `Your ${selectedWeapon} is ready for use.\n`;
+    // If no command, always sync state.equippedWeapon from story card for persistence
+    state.equippedWeapon = retrieveEquippedWeaponFromSC() || null;
+    if (state.equippedWeapon) {
+        state.msgHolder += `Your ${state.equippedWeapon} is ready for use.\n`;
     }
     return text;
 }
+
 ///////////////////////////END OF WEAPON EQUIP DETECTION///////////////////////////////////////
 
 
@@ -3247,7 +3282,7 @@ function createIfNoWeaponmodSC() {
   }
 }
 
-// STORES and displays the modifiers to player in sc
+// STORES and displays the modifiers to weapons in sc
 function storeWeaponmodsToSC() {
   let formatForSC = [];
   weaponmodKeys.forEach((key) => {
@@ -3276,6 +3311,31 @@ function retrieveWeaponmodsFromSC() {
     }
   });
 }
+
+// CREATE new story card for equipped weapon in "Equipped Gear" category if it doesn't exist
+function createIfNoEquippedWeaponSC() {
+  if (!storyCards.find(sc => sc.title === "Equipped Weapon")) {
+    addStoryCard("Equipped Weapon", "Currently equipped weapon.", "Equipped Gear");
+    // Optionally, set a description for the card
+    let eqSC = storyCards.find(sc => sc.title === "Equipped Weapon");
+    eqSC.description = "Stores the name of your currently equipped weapon. Format: Weapon Name";
+    eqSC.entry = ""; // Start empty
+  }
+}
+
+// Store equipped weapon in the "Equipped Gear" category
+function storeEquippedWeaponToSC(weaponName) {
+  createIfNoEquippedWeaponSC();
+  let eqSC = storyCards.find(sc => sc.title === "Equipped Weapon");
+  eqSC.entry = weaponName || "";
+}
+
+// Retrieve equipped weapon from the "Equipped Gear" category
+function retrieveEquippedWeaponFromSC() {
+  let eqSC = storyCards.find(sc => sc.title === "Equipped Weapon");
+  return eqSC && eqSC.entry ? eqSC.entry : null;
+}
+
 
 // Initialize Weapon stats for currently equipped weapon
 function getCurrentWeaponName() {
@@ -3451,7 +3511,7 @@ function retrieveInvFromSC(){
   log("fromInvSC: " + fromInvSC);
 
   // Use regex to extract item names and amounts (Ex: Ball (Amt: 2), etc. )
-  matches = fromInvSC.matchAll(/(.+?)\s*\(.*?(\d+(?:\.\d+)?).*?\)/g);
+  matches = fromInvSC.matchAll(/(.+?)\s*\(Amt:\s*(\d+(?:\.\d+)?)\)/gi);
 
   itemHold = [];
   amtHold = [];
@@ -3469,104 +3529,59 @@ function retrieveInvFromSC(){
 
 
 function detectStoreInv(text) {
-    // Clean and split text into words
-    let cleanText = text.replace(/[.,!?]/g, '').replace(/\s+/g, ' ').trim();
-    let words = cleanText.split(' ');
+    // Remove punctuation except hyphens, split into words
+    let wordsArr = text.replace(/[.,!?]/g, '').replace(/\s+/g, ' ').trim().split(' ');
 
-    // Find the index of the first inventory word
-    let invIndex = words.findIndex(w => invWords.some(inv => w.toLowerCase() === inv.toLowerCase()));
-    if (invIndex === -1) return text;
+    // Find the index of the first equip/store verb
+    let equipIndex = wordsArr.findIndex(w => equipWords.some(eq => w.toLowerCase() === eq.toLowerCase()));
+    if (equipIndex === -1) return text;
 
-    // Work backwards to find the last equip word before the inventory word
-    let equipIndex = -1;
-    for (let i = invIndex - 1; i >= 0; i--) {
-        if (equipWords.some(eq => words[i].toLowerCase() === eq.toLowerCase())) {
-            equipIndex = i;
-            break;
-        }
-    }
+    // Find the index of the first inventory word (optional)
+    let invIndex = wordsArr.findIndex(w => invWords.some(inv => w.toLowerCase() === inv.toLowerCase()));
 
-    // If equip word found and there are words between equip and inventory, use them
+    // Extract item words between equip verb and inventory noun, or just after equip verb
     let itemWords;
-    if (equipIndex !== -1 && equipIndex < invIndex - 1) {
-        itemWords = words.slice(equipIndex + 1, invIndex);
+    if (invIndex !== -1 && equipIndex < invIndex - 1) {
+        itemWords = wordsArr.slice(equipIndex + 1, invIndex);
     } else {
-        // Otherwise, use up to 3 words before the inventory word
-        let start = Math.max(0, invIndex - 3);
-        itemWords = words.slice(start, invIndex);
+        itemWords = wordsArr.slice(equipIndex + 1, equipIndex + 4); // up to 3 words after verb
     }
 
-    // Remove stopwords and equip/inventory words from itemWords
+    // Remove stopwords, equip/inventory words, and trailing verbs/prepositions
     itemWords = itemWords.filter(w =>
         !equipWords.includes(w.toLowerCase()) &&
         !invWords.includes(w.toLowerCase()) &&
         !stopWords.includes(w.toLowerCase())
     );
-
-    // If nothing left, fallback: scan for last capitalized word or noun-like word before inventory word
-    if (itemWords.length === 0) {
-        // If "it" is present, look for the last non-stopword, capitalized word before "it"
-        let itIndex = words.slice(0, invIndex).lastIndexOf("it");
-        if (itIndex !== -1) {
-            for (let i = itIndex - 1; i >= 0; i--) {
-                let w = words[i];
-                if (
-                    !equipWords.includes(w.toLowerCase()) &&
-                    !invWords.includes(w.toLowerCase()) &&
-                    !stopWords.includes(w.toLowerCase()) &&
-                    w.length > 1 &&
-                    w[0] === w[0].toUpperCase()
-                ) {
-                    itemWords = [w];
-                    break;
-                }
-            }
-        }
-        // If still nothing, fallback: scan for last capitalized word before inventory word
-        if (itemWords.length === 0) {
-            for (let i = invIndex - 1; i >= 0; i--) {
-                let w = words[i];
-                if (
-                    !equipWords.includes(w.toLowerCase()) &&
-                    !invWords.includes(w.toLowerCase()) &&
-                    !stopWords.includes(w.toLowerCase()) &&
-                    w.length > 1 &&
-                    w[0] === w[0].toUpperCase()
-                ) {
-                    itemWords = [w];
-                    break;
-                }
-            }
-        }
-        // If still nothing, fallback: scan for last non-stopword before inventory word
-        if (itemWords.length === 0) {
-            for (let i = invIndex - 1; i >= 0; i--) {
-                let w = words[i];
-                if (
-                    !equipWords.includes(w.toLowerCase()) &&
-                    !invWords.includes(w.toLowerCase()) &&
-                    !stopWords.includes(w.toLowerCase()) &&
-                    w.length > 1
-                ) {
-                    itemWords = [w];
-                    break;
-                }
-            }
-        }
+    while (itemWords.length > 1 && /(placing|putting|adding|storing|taking|grabbing|equipping|looting|snatching|it|them|this|that)/i.test(itemWords[itemWords.length - 1])) {
+        itemWords.pop();
     }
 
-    // If the first word is a number, treat as amount
+    // Now check if the first word is a number or number word
     let itemAmt = 1;
-    if (itemWords.length > 1 && /^\d+$/.test(itemWords[0])) {
+    const numberWordsRegex = /^(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)$/i;
+    if (itemWords.length > 1 && numberWordsRegex.test(itemWords[0])) {
+        itemAmt = parseInt(wordsToNumber(itemWords[0]).trim());
+        itemWords = itemWords.slice(1);
+    } else if (itemWords.length > 1 && /^\d+$/.test(itemWords[0])) {
         itemAmt = parseInt(itemWords[0]);
         itemWords = itemWords.slice(1);
     }
 
-    // Join remaining words as item name
+    // Singularize last word if it's a simple plural (e.g., "cells" -> "cell"), but keep hyphens
+    if (
+        itemWords.length > 0 &&
+        /s$/.test(itemWords[itemWords.length - 1]) &&
+        !/ss$/.test(itemWords[itemWords.length - 1])
+    ) {
+        itemWords[itemWords.length - 1] = itemWords[itemWords.length - 1].replace(/s$/, '');
+    }
+
+    // Join remaining words as item name (hyphens are preserved)
     let itemName = itemWords.join(' ').trim();
 
     // Final sanity checks
-    if (!itemName || itemName.length < 2 || /(put|store|add|get|take|grab|equip|loot|snatch|place|it|them|this|that)/i.test(itemName)) {
+    if (!itemName || itemName.length < 2) {
         return text; // Don't add junk entries
     }
 
@@ -3582,20 +3597,15 @@ function detectStoreInv(text) {
     storeInvToSC();
     return text + "🎒";
 }
+///Player skills will be stored in an sc. CREATE initial sc. Skills will STORE TO or RETREIVE FROM sc.
 
-/////////////////////////////////////////////////////////////////////////////////////
+// Initialize player skills (ensure always defined for stateless AI Dungeon)
 
-//Initialize player skills
 state.playerSkills = state.playerSkills || {
   name: [],
   lvl: [],
   cost: []
 };
-console.log("state.playerSkills.name: " + state.playerSkills.name);
-console.log("state.playerSkills.lvl: " + state.playerSkills.lvl);
-console.log("state.playerSkills.cost: " + state.playerSkills.cost);
-
-///Player skills will be stored in an sc. CREATE initial sc. Skills will STORE TO or RETREIVE FROM sc.
 
 //Function to create new class skills for player and store to their skills
 function newClassSkills(classString,skillArray){
@@ -4604,6 +4614,7 @@ function detectConsuming(text){
 
 function detectCombatAction(text, actionWords, actionType) {
   let startAction = false;
+   let repeatCount = getActionRepeatCount(text);
 
   // Dialogue check
   let dialogueCheck = true;
@@ -4614,6 +4625,7 @@ function detectCombatAction(text, actionWords, actionType) {
     }
   });
 
+  
   // Weapon mode toggles for ranged
   let weaponName, weaponStats;
   if (actionType === 'ranged') {
@@ -4642,8 +4654,30 @@ function detectCombatAction(text, actionWords, actionType) {
     }
   }
 
-  if (startAction) {
-    return executeAction(text, actionType, weaponName, weaponStats);
+// Utility: Detects phrases like "twice", "three times", "2 times", etc.
+function getActionRepeatCount(text) {
+  let t = text.toLowerCase();
+  if (t.includes("twice")) return 2;
+  if (t.includes("thrice")) return 3;
+  let match = t.match(/(\d+)\s*(times|x)\b/);
+  if (match) return parseInt(match[1]);
+  let wordMatch = t.match(/(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\s+times/);
+  if (wordMatch) return parseInt(wordsToNumber(wordMatch[1]).trim());
+  return 1;
+}
+
+
+  ///impliments multiple actions
+ if (startAction) {
+    let resultText = text;
+    for (let i = 0; i < repeatCount; i++) {
+      resultText = executeAction(resultText, actionType, weaponName, weaponStats);
+    }
+    // Optionally, append a summary if repeated
+    if (repeatCount > 1) {
+      resultText += ` (Action repeated ${repeatCount} times)`;
+    }
+    return resultText;
   }
   return text;
 }
