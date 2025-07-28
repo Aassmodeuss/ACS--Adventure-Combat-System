@@ -1680,7 +1680,8 @@ function helpCommandInput_TSS(text){
   - Include a number to specify quantity. Ex: "You put 2 apples in your bag."
   - Edit your inventory in the story card using the format: "Item Name (Amt)".
   >>
-  `
+    `
+
   }
   else if (text.includes("/help actions")) {
     state.commandCenter_TSS = 
@@ -1699,10 +1700,16 @@ function helpCommandInput_TSS(text){
     - ATK & SPD:
       • +10 ATK & SPD → stronger attacks
       • +10 SPD → faster actions, better dodging
-      • Attacking and dodging costs energy based on your ATK and SPD
+      • Attacking and dodging costs energy based on your RATK or ATK, and SPD
     - INTL:
       • +10 INTL → greater detail when scouting.
       • Scouting Format: "You [scout words]."
+    - Weapons
+    - Placing a weapon into your inventory allows you to equip it. Equip a weapon by drawing it as in "I draw my laspistol" 
+    - Once a weapon is equipped you do not need to specify which weapon you are attacking with your attacks will use ammunition from that weapon's story card.
+    - Unequip a weapon by returning it to your holster as in "I return my laspistol to it's holster"
+    - You may toggle fire modes on appropriate weapons by saying "I select" or "I toggle burst fire" or "overcharge". Burst fire fires three rounds, overcharge consumes all remaining ammunition
+    - You may fire multiple times in one action by saying "I fire twice" or "I fire three times etc"
     >>
     `
   }
@@ -2211,15 +2218,11 @@ function detectWeaponEquip(text) {
                 return text;
             }
         }
-        state.msgHolder += `You do not have that weapon in your inventory.\n`;
+         state.msgHolder += `You do not have that weapon in your inventory.\n`;
+        text += " You do not have that weapon in your inventory.";
         return text;
     }
 
-    // If no command, always sync state.equippedWeapon from story card for persistence
-    state.equippedWeapon = retrieveEquippedWeaponFromSC() || null;
-    if (state.equippedWeapon) {
-        state.msgHolder += `Your ${state.equippedWeapon} is ready for use.\n`;
-    }
     return text;
 }
 
@@ -3347,11 +3350,25 @@ function getCurrentWeaponName() {
 
 // CREATE new sc with weaponstats if sc doesn't exist
 function createIfNoWeaponSC() {
+  // Only create starter weapons if NO weapon cards exist
   if (!storyCards.some(sc => sc.type === "Weapons" || sc.category === "Weapons")) {
+    // Laspistol
     addStoryCard("Laspistol", "A simple starter weapon.", "Weapons");
-    const weaponSC = storyCards.find(sc => sc.title === "Laspistol");
-    weaponSC.description = "Format for Modifying: Stat: num/maxNum";
-    weaponSC.entry = "COND: 100/100\nAMMO: 50/50\n";
+    const laspistolSC = storyCards.find(sc => sc.title === "Laspistol");
+    laspistolSC.description = "Format for Modifying: Stat: num/maxNum";
+    laspistolSC.entry = "COND: 100/100\nAMMO: 50/50\nDMG TYPE: Laser\n";
+
+    // Lasrifle 
+    addStoryCard("Lasrifle", "A standard-issue rifle with burst fire capability.", "Weapons");
+    const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
+    lasrifleSC.description = "Format for Modifying: Stat: num/maxNum";
+    lasrifleSC.entry = "COND: 100/100\nAMMO: 50/50\nBurst Fire Mode: OFF\nDMG TYPE: Laser\n";
+
+    // RS-43 Longstrike
+    addStoryCard("RS-43 Longstrike", "A powerful rifle with overcharge capability.", "Weapons");
+    const longstrikeSC = storyCards.find(sc => sc.title === "RS-43 Longstrike");
+    longstrikeSC.description = "Format for Modifying: Stat: num/maxNum";
+    longstrikeSC.entry = "COND: 100/100\nAMMO: 20/20\nOvercharge Mode: OFF\nDMG TYPE: Laser\n";
   }
 }
 
@@ -3361,15 +3378,19 @@ function storeWeaponToSC(weaponName, weaponStatsOverride) {
   if (!weaponName) return;
   const weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
   if (!weaponSC) return;
-  // Use the provided stats if given, else parse from entry
   let stats = weaponStatsOverride || retrieveWeaponStatsFromEntry(weaponSC.entry);
   let formatForSC = [];
   formatForSC.push(`COND: ${stats.cond}/${stats.maxCond}\n`);
   formatForSC.push(`AMMO: ${stats.ammo}/${stats.maxAmmo}\n`);
-  if (typeof stats.burstFireMode !== "undefined")
+  // Only include these lines if they already exist in the entry
+  if (/^Burst Fire Mode:/m.test(weaponSC.entry)) {
     formatForSC.push(`Burst Fire Mode: ${stats.burstFireMode ? "ON" : "OFF"}\n`);
-  if (typeof stats.overchargeMode !== "undefined")
+  }
+  if (/^Overcharge Mode:/m.test(weaponSC.entry)) {
     formatForSC.push(`Overcharge Mode: ${stats.overchargeMode ? "ON" : "OFF"}\n`);
+  }
+  // Always include DMG TYPE
+  formatForSC.push(`DMG TYPE: ${stats.dmgType || "Laser"}\n`);
   weaponSC.entry = formatForSC.join("").replace(/,/g, '');
   if (weaponSC.description.length > 3000) {
     let halfIndex = Math.floor(weaponSC.description.length / 2);
@@ -3378,9 +3399,10 @@ function storeWeaponToSC(weaponName, weaponStatsOverride) {
   }
 }
 
+
 // Helper: Parse weapon stats from entry string
 function retrieveWeaponStatsFromEntry(entry) {
-  let stats = { cond: 100, ammo: 50, maxCond: 100, maxAmmo: 50, burstFireMode: false, overchargeMode: false };
+  let stats = { cond: 100, ammo: 50, maxCond: 100, maxAmmo: 50, burstFireMode: false, overchargeMode: false, dmgType: "Laser" };
   entry.split("\n").forEach(line => {
     let match = line.match(/^COND:\s*(\d+)\s*\/\s*(\d+)/i);
     if (match) {
@@ -3399,6 +3421,10 @@ function retrieveWeaponStatsFromEntry(entry) {
     match = line.match(/^Overcharge Mode:\s*(ON|OFF)$/i);
     if (match) {
       stats.overchargeMode = match[1].toUpperCase() === "ON";
+    }
+    match = line.match(/^DMG TYPE:\s*(.+)$/i);
+    if (match) {
+      stats.dmgType = match[1].trim();
     }
   });
   return stats;
@@ -3420,12 +3446,14 @@ function updateWeaponModes(weaponName, weaponStats) {
     let formatForSC = [];
     formatForSC.push(`COND: ${weaponStats.cond}/${weaponStats.maxCond}\n`);
     formatForSC.push(`AMMO: ${weaponStats.ammo}/${weaponStats.maxAmmo}\n`);
+    // Only include these lines if they already exist in the entry
     if (/^Burst Fire Mode:/m.test(weaponSC.entry)) {
       formatForSC.push(`Burst Fire Mode: ${weaponStats.burstFireMode ? "ON" : "OFF"}\n`);
     }
     if (/^Overcharge Mode:/m.test(weaponSC.entry)) {
       formatForSC.push(`Overcharge Mode: ${weaponStats.overchargeMode ? "ON" : "OFF"}\n`);
     }
+    formatForSC.push(`DMG TYPE: ${weaponStats.dmgType || "Laser"}\n`);
     weaponSC.entry = formatForSC.join("").replace(/,/g, '');
   }
 }
@@ -4612,9 +4640,22 @@ function detectConsuming(text){
 
 // --- Consolidated Attack and Ranged Attack Logic ---
 
+function getActionRepeatCount(text) {
+  // Match "twice", "thrice", "x3", "3 times", etc.
+  let match = text.match(/(\d+)\s*(?:times|x)?/i);
+  if (match) {
+    let count = parseInt(match[1]);
+    if (!isNaN(count) && count > 0) return Math.min(count, 10);
+  }
+  // Handle "twice" and "thrice"
+  if (/twice/i.test(text)) return 2;
+  if (/thrice/i.test(text)) return 3;
+  return 1;
+}
+
 function detectCombatAction(text, actionWords, actionType) {
   let startAction = false;
-   let repeatCount = getActionRepeatCount(text);
+  let repeatCount = getActionRepeatCount(text);
 
   // Dialogue check
   let dialogueCheck = true;
@@ -4624,23 +4665,6 @@ function detectCombatAction(text, actionWords, actionType) {
       dialogueCheck = false;
     }
   });
-
-  
-  // Weapon mode toggles for ranged
-  let weaponName, weaponStats;
-  if (actionType === 'ranged') {
-    weaponName = state.equippedWeapon || "Laspistol";
-    weaponStats = retrieveWeaponFromSC(weaponName) || { cond: 100, ammo: 50, maxCond: 100, maxAmmo: 50, burstFireMode: false, overchargeMode: false };
-
-    if (textLower.includes("burst fire")) {
-      weaponStats.burstFireMode = !weaponStats.burstFireMode;
-      updateWeaponModes(weaponName, weaponStats);
-    }
-    if (textLower.includes("overcharge")) {
-      weaponStats.overchargeMode = !weaponStats.overchargeMode;
-      updateWeaponModes(weaponName, weaponStats);
-    }
-  }
 
   // Action word detection
   if (dialogueCheck) {
@@ -4654,26 +4678,34 @@ function detectCombatAction(text, actionWords, actionType) {
     }
   }
 
-// Utility: Detects phrases like "twice", "three times", "2 times", etc.
-function getActionRepeatCount(text) {
-  let t = text.toLowerCase();
-  if (t.includes("twice")) return 2;
-  if (t.includes("thrice")) return 3;
-  let match = t.match(/(\d+)\s*(times|x)\b/);
-  if (match) return parseInt(match[1]);
-  let wordMatch = t.match(/(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\s+times/);
-  if (wordMatch) return parseInt(wordsToNumber(wordMatch[1]).trim());
-  return 1;
-}
+  // Only check for equipped weapon if a ranged action is actually being attempted!
+  let weaponName, weaponStats;
+  if (actionType === 'ranged' && startAction) {
+    weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+    if (!weaponName) {
+      state.msgHolder += "You do not have a weapon equipped for ranged attacks.\n";
+      text += " You fumble for a weapon, but nothing is equipped.";
+      return text;
+    }
+    state.equippedWeapon = weaponName; // cache for this turn
+    weaponStats = retrieveWeaponFromSC(weaponName) || { cond: 100, ammo: 50, maxCond: 100, maxAmmo: 50, burstFireMode: false, overchargeMode: false };
 
+    if (textLower.includes("burst fire")) {
+      weaponStats.burstFireMode = !weaponStats.burstFireMode;
+      updateWeaponModes(weaponName, weaponStats);
+    }
+    if (textLower.includes("overcharge")) {
+      weaponStats.overchargeMode = !weaponStats.overchargeMode;
+      updateWeaponModes(weaponName, weaponStats);
+    }
+  }
 
-  ///impliments multiple actions
- if (startAction) {
+  //impliments multiple actions
+  if (startAction) {
     let resultText = text;
     for (let i = 0; i < repeatCount; i++) {
       resultText = executeAction(resultText, actionType, weaponName, weaponStats);
     }
-    // Optionally, append a summary if repeated
     if (repeatCount > 1) {
       resultText += ` (Action repeated ${repeatCount} times)`;
     }
@@ -4745,7 +4777,7 @@ function executeAction(text, actionType, weaponName, weaponStats) {
      let ammoCost = weaponStats.burstFireMode ? -3 : -1;
     if (weaponStats.overchargeMode) ammoCost = -weaponStats.ammo;
 
-    // Overcharge mode: cannot fire if ammo is zero
+    // Overcharge mode: cannot fire if ammo is below 50%
     if (
   weaponStats.overchargeMode &&
   (weaponStats.ammo < Math.ceil(weaponStats.maxAmmo * 0.5))
