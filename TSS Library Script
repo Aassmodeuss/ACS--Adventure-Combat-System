@@ -54,6 +54,9 @@ function onInput_TSS(text) {
 
     //Detect weapon equip/holster first
     text = detectWeaponEquip(text);
+
+     //Detect fire mode toggles (standalone)
+    text = detectFireModeToggle(text);
     
     //Create story cards if none
     createIfNoStatSC();
@@ -3456,6 +3459,48 @@ function updateWeaponModes(weaponName, weaponStats) {
     formatForSC.push(`DMG TYPE: ${weaponStats.dmgType || "Laser"}\n`);
     weaponSC.entry = formatForSC.join("").replace(/,/g, '');
   }
+}
+
+function detectFireModeToggle(text) {
+  // Only check if a weapon is equipped
+  let weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+  if (!weaponName) return text;
+
+  let weaponStats = retrieveWeaponFromSC(weaponName) || {};
+
+  let changed = false;
+
+  // Normalize input
+  let t = text.toLowerCase();
+
+  // Accept more verbs and patterns for toggling burst fire
+  if (
+    /(toggle|select|switch|flip|set|change|turn|enable|disable).{0,15}(burst\s*fire|burst)/i.test(t) ||
+    /(burst\s*fire|burst).{0,15}(mode|on|off|enabled|disabled)/i.test(t) ||
+    /(to|into)\s+burst\s*fire/i.test(t)
+  ) {
+    weaponStats.burstFireMode = !weaponStats.burstFireMode;
+    updateWeaponModes(weaponName, weaponStats);
+    storeWeaponToSC(weaponName, weaponStats);
+    state.msgHolder += `Burst Fire Mode is now ${weaponStats.burstFireMode ? "ON" : "OFF"} for your ${weaponName}.\n`;
+    changed = true;
+  }
+
+  // Accept more verbs and patterns for toggling overcharge
+  if (
+    /(toggle|select|switch|flip|set|change|turn|enable|disable).{0,15}(overcharge)/i.test(t) ||
+    /(overcharge).{0,15}(mode|on|off|enabled|disabled)/i.test(t) ||
+    /(to|into)\s+overcharge/i.test(t)
+  ) {
+    weaponStats.overchargeMode = !weaponStats.overchargeMode;
+    updateWeaponModes(weaponName, weaponStats);
+    storeWeaponToSC(weaponName, weaponStats);
+    state.msgHolder += `Overcharge Mode is now ${weaponStats.overchargeMode ? "ON" : "OFF"} for your ${weaponName}.\n`;
+    changed = true;
+  }
+
+  if (changed) return text + " [Fire mode toggled]";
+  return text;
 }
 
 function detectAttack(text) {
