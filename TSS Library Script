@@ -20,7 +20,6 @@ function onLibrary_TSS() {
 
   // Initialize variables
   if (state.startScript == undefined) {
-    // Script is naturally locked
     state.startScript = false;
   }
   if (state.turnCount == undefined) {
@@ -29,6 +28,13 @@ function onLibrary_TSS() {
   if (state.msgHolder == undefined){
     state.msgHolder = "";
   }
+}
+
+// Utility function to get weapon names from story cards
+function getWeaponNamesFromStoryCards() {
+    return storyCards
+        .filter(sc => sc.type === "Weapons" || sc.category === "Weapons") // adjust as needed
+        .map(sc => sc.title.toLowerCase());
 }
 
 // INPUT HOOK
@@ -46,23 +52,28 @@ function onInput_TSS(text) {
     state.inputCount += 1;
     log("state.inputCount: " + state.inputCount);
 
+    //Detect weapon equip/holster first
+    text = detectWeaponEquip(text);
+    
     //Create story cards if none
     createIfNoStatSC();
     createIfNoInvSC();
     createIfNoTalentSC();
     createIfNoSkillSC();
     createIfNoModifierSC();        
-    createIfNoLasrifleSC();    
-    createIfNoWeaponmodSC();    
-
+    createIfNoWeaponSC();    
+    createIfNoWeaponmodSC();
+    createIfNoEquippedWeaponSC();
+  
     //Updates codebase if player edits their storage SCs
     retrieveStatsFromSC();
     retrieveTalentsFromSC();
     retrieveSkillsFromSC();
     retrieveInvFromSC();
     retrieveModifiersFromSC();
-    retrieveLasrifleFromSC();
+    retrieveWeaponFromSC();
     retrieveWeaponmodsFromSC();
+    retrieveEquippedWeaponFromSC();
 
     text = detectStoreInv(text);
 
@@ -86,7 +97,9 @@ function onInput_TSS(text) {
 
     text = warnPlayerHealth(text);
 
-  }//end of main()
+ 
+   }//end of main()
+  
 
   return text;
 }
@@ -113,8 +126,9 @@ function onOutput_TSS(text) {
     createIfNoTalentSC();
     createIfNoSkillSC();
     createIfNoModifierSC();
-    createIfNoLasrifleSC();
+    createIfNoWeaponSC();
     createIfNoWeaponmodSC();
+    createIfNoEquippedWeaponSC()
 
     //End of skill learning process. Do not disturb talent storage beforehand.
     text = getEnergyCost(text);
@@ -143,20 +157,25 @@ function onOutput_TSS(text) {
     storeInvToSC();
 
     //Updates player mods in code if player edits their mods in SC
-    retrieveModifiersFromSC()
+    retrieveModifiersFromSC();
     //Final mods store back to SC in correct formatting
     storeModifiersToSC();
     
-    //Updates Lasrifle in code if player edits Lasrifle in SC
-    retrieveLasrifleFromSC();
+    //Updates Weapon in code if player edits Weapon in SC
+    retrieveWeaponFromSC();
     //Final stats store back to SC in correct formatting
-    storeLasrifleToSC();
+    storeWeaponToSC();
     
     //Updates weapon mods in code if player edits their weapon mods in SC
-    retrieveWeaponmodsFromSC()
+    retrieveWeaponmodsFromSC();
     //Final mods store back to SC in correct formatting
     storeWeaponmodsToSC();
-    
+
+   // Retrieve equipped weapon from the "Equipped Gear" category
+   retrieveEquippedWeaponFromSC()
+   // Retrieve equipped weapon from the "Equipped Gear" category
+   retrieveEquippedWeaponFromSC()
+
     state.message = state.msgHolder;
     state.msgHolder = "";
 
@@ -189,7 +208,7 @@ equipWords = [
 ];
 
 invWords = [
-  "bag", "backpack", "body", "case", "chest", "collection",  "container", "crates", "equipment", "hands", "hand", "holder", "holdings", "inventory", "items", "legs", "loot", "pack", "pocket", "pouch", "rucksack", "sack", "satchel", "storage", "supplies", "tote"
+  "bag", "backpack", "body", "case", "chest", "collection",  "container", "crates", "equipment", "hands", "hand", "holder", "holdings", "holster", "inventory", "items", "legs", "loot", "pack", "pocket", "pouch", "rucksack", "sack", "satchel", "storage", "supplies", "tote"
 ];
 
 numWords = [
@@ -512,7 +531,7 @@ const attackTier8 = [
 ];
 
 const attackTier9 = [
-  "The strike becomes a force of pure intent.",
+ "The strike becomes a force of pure intent.",
   "The air parts before the hit.",
   "Expectations shatter along with defense.",
   "The blow thunders with deadly direction.",
@@ -598,7 +617,7 @@ const rangedattackTier3 = [
 const rangedattackTier4 = [
   
   "you shoot high, narrowly missing your target",
-  "your shot hits, but only grazes your target",,
+  "your shot hits, but only grazes your target",
   "your shot grazes your target, dealing little damage",
   "your shot hits, lightly damaging your target",
   "your shot hits, moderatly damaging your target",
@@ -1661,7 +1680,8 @@ function helpCommandInput_TSS(text){
   - Include a number to specify quantity. Ex: "You put 2 apples in your bag."
   - Edit your inventory in the story card using the format: "Item Name (Amt)".
   >>
-  `
+    `
+
   }
   else if (text.includes("/help actions")) {
     state.commandCenter_TSS = 
@@ -1680,10 +1700,16 @@ function helpCommandInput_TSS(text){
     - ATK & SPD:
       • +10 ATK & SPD → stronger attacks
       • +10 SPD → faster actions, better dodging
-      • Attacking and dodging costs energy based on your ATK and SPD
+      • Attacking and dodging costs energy based on your RATK or ATK, and SPD
     - INTL:
       • +10 INTL → greater detail when scouting.
       • Scouting Format: "You [scout words]."
+    - Weapons
+    - Placing a weapon into your inventory allows you to equip it. Equip a weapon by drawing it as in "I draw my laspistol" 
+    - Once a weapon is equipped you do not need to specify which weapon you are attacking with your attacks will use ammunition from that weapon's story card.
+    - Unequip a weapon by returning it to your holster as in "I return my laspistol to it's holster"
+    - You may toggle fire modes on appropriate weapons by saying "I select" or "I toggle burst fire" or "overcharge". Burst fire fires three rounds, overcharge consumes all remaining ammunition
+    - You may fire multiple times in one action by saying "I fire twice" or "I fire three times etc"
     >>
     `
   }
@@ -1792,7 +1818,7 @@ function indicesOfTargets(wordsArr,targetWordsArr){
 
 //Input a string and remove punctuation
 function removeSpecificPunctuation(str) {
-  return str.replace(/[.><,!?;:"()\-\n]/g, " ");
+  return str.replace(/[.><,!?;:"()\n]/g, " ");
 }
 
 //Return true or false for first letter capitalized
@@ -1809,8 +1835,8 @@ function randomFloat(min, max){
   return Math.random() * (max - min) + min;
 }
 
-// Check for targets in text and split text string into words arr if there are. Replace all target words with first target word if simplify is true
-function findTargetsThenSplit(text, targetWordsArr, wordsArrHolder, simplify) {
+// Check for targets in text and split text string into words arr if there are. Replace all target words with first target word if unlocking is true
+function findTargetsThenSplit(text, targetWordsArr, wordsArrHolder, unlocking) {
   if (text == null) return null;
 
   yesSplit = false
@@ -1825,7 +1851,7 @@ function findTargetsThenSplit(text, targetWordsArr, wordsArrHolder, simplify) {
     // If text has target, set yessplit true
     if(targetRegex.test(cleanText)){
       // Optional replace large target words with first target word
-      if (simplify === true && target.split(" ").length > 1) {
+      if (unlocking === true && target.split(" ").length > 1) {
         cleanText = cleanText.replace(targetRegex, targetWordsArr[0]);
       }
 
@@ -1851,9 +1877,12 @@ function findTargetsThenSplit(text, targetWordsArr, wordsArrHolder, simplify) {
 function cleanStringCheckForTargets(targetWordsArr, text) {
   if (text == null) {return false};
 
-  text = text.toLowerCase();
-  let cleanText = removeSpecificPunctuation(text);
-  //log(cleanText);
+ let wordsArr = text.replace(/[.,!?]/g, '').replace(/\s+/g, ' ').trim().split(' ');
+const numberWordsRegex = /^(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)$/i;
+if (numberWordsRegex.test(wordsArr[0])) {
+  wordsArr[0] = wordsToNumber(wordsArr[0]).trim();
+}
+let cleanText = wordsArr.join(' ');
 
   // Loop through target words
   for (let target of targetWordsArr) {
@@ -2028,7 +2057,7 @@ function wordsToNumber(text) {
     '\\b(?:(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|' +
     'eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|' +
     'twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|' +
-    'hundred|thousand|million|billion|[-])+\\s*)+\\b',
+    'hundred|thousand|million|billion|trillion|[-])+\\s*)+\\b',
     'gi'
   );
 
@@ -2073,6 +2102,132 @@ function getDigitIndices(wordsArray) {
 
   return digitIndices;
 }
+
+// --- Levenshtein Distance Helper ---
+function levenshtein(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1,
+                    matrix[i][j - 1] + 1,
+                    matrix[i - 1][j] + 1
+                );
+            }
+        }
+    }
+    return matrix[b.length][a.length];
+}
+
+// --- Fuzzy Inventory Item Matcher ---
+function findBestInventoryMatch(input, inventoryItems) {
+    input = input.toLowerCase().replace(/[^a-z0-9 ]/gi, '');
+    let inputTokens = input.split(/\s+/).filter(Boolean);
+
+    let bestScore = 0;
+    let bestItems = [];
+
+    // First, use token overlap
+    for (let item of inventoryItems) {
+        let itemTokens = item.toLowerCase().replace(/[^a-z0-9 ]/gi, '').split(/\s+/).filter(Boolean);
+        let overlap = inputTokens.filter(token => itemTokens.includes(token)).length;
+        if (overlap > bestScore) {
+            bestScore = overlap;
+            bestItems = [item];
+        } else if (overlap === bestScore && overlap > 0) {
+            bestItems.push(item);
+        }
+    }
+    // If only one best match, return it
+    if (bestItems.length === 1) return bestItems[0];
+    // If multiple, use Levenshtein distance as tie-breaker
+    if (bestItems.length > 1) {
+        let minDist = Infinity;
+        let best = bestItems[0];
+        for (let item of bestItems) {
+            let dist = levenshtein(input, item.toLowerCase());
+            if (dist < minDist) {
+                minDist = dist;
+                best = item;
+            }
+        }
+        return best;
+    }
+    // No match found
+    return null;
+}
+
+
+///////////////////////////START OF WEAPON EQUIP DETECTION///////////////////////////////////////
+  //Detects equip/unequip commands and updates the Equipped Weapon story card.
+  
+function detectWeaponEquip(text) {
+    // Normalize input for matching
+    let cleanText = text.toLowerCase();
+
+    // Get inventory items from Player Inventory story card
+    const invSC = storyCards.find(sc => sc.title === "Player Inventory");
+    let inventoryItems = [];
+    if (invSC && invSC.entry) {
+        let matches = invSC.entry.matchAll(/(.+?)\s*\(.*?(\d+(?:\.\d+)?).*?\)/g);
+        for (const match of matches) {
+            let itemName = match[1].replace(/\b(the|a|an|my|your)\b/gi, '').trim().toLowerCase();
+            inventoryItems.push(itemName);
+        }
+    }
+
+    // Get weapon names from weapon story cards
+    let weaponNames = getWeaponNamesFromStoryCards();
+
+    // Check for equip/unequip commands
+    let equipCmd = /(equip|draw|ready|wield|hold|unsheath|arm)\s+([\w\s\-']+)/i;
+    let unequipCmd = /(unequip|holster|put away|stow|sheath|disarm|return)\s+(?:my|your)?\s*([\w\s\-']+)?/i;
+
+    let equippedWeapon = retrieveEquippedWeaponFromSC() || null;
+
+    // Handle unequip
+    if (unequipCmd.test(cleanText)) {
+        storeEquippedWeaponToSC("");
+        state.equippedWeapon = null;
+        state.msgHolder += `You put away your weapon.\n`;
+        return text;
+    }
+
+    // Handle equip
+    let equipMatch = cleanText.match(equipCmd);
+    if (equipMatch) {
+        let inputWeapon = equipMatch[2].trim().toLowerCase();
+        // Fuzzy match inventory item to weapon card
+        let bestMatch = findBestInventoryMatch(inputWeapon, inventoryItems.filter(item =>
+            weaponNames.some(w => item.includes(w) || w.includes(item))
+        ));
+        if (bestMatch) {
+            // Find the matching weapon card name
+            let matchedWeapon = weaponNames.find(w => bestMatch.includes(w) || w.includes(bestMatch));
+            if (matchedWeapon) {
+                storeEquippedWeaponToSC(matchedWeapon);
+                state.equippedWeapon = matchedWeapon;
+                state.msgHolder += `You equip your ${matchedWeapon}.\n`;
+                return text;
+            }
+        }
+         state.msgHolder += `You do not have that weapon in your inventory.\n`;
+        text += " You do not have that weapon in your inventory.";
+        return text;
+    }
+
+    return text;
+}
+
+///////////////////////////END OF WEAPON EQUIP DETECTION///////////////////////////////////////
+
 
 //Function to get plr race
 function getPlrRace(){
@@ -2896,6 +3051,18 @@ function statUp(statName,incAmt){
   }
   incAmt = incAmt + temp;
   incAmt = Math.round(incAmt * 100) / 100;
+  preModIncAmt = incAmt;
+  scaledIncAmt = incAmt;
+
+  //Race modifiers influence stat gains
+  plrRace = getPlrRace();
+  temp = incAmt * state.playerModifiers[statName+'Mod']/100;
+  //Multiply temp by negative to ensure modifiers dont modify oppositely when incAmt is negative
+  if(incAmt < 0){
+    temp = temp * -1;
+  }
+  incAmt = incAmt + temp;
+  incAmt = Math.round(incAmt * 100) / 100;
   log("Race modded incAmt: " + incAmt + " " + statName);
 
   //Get maxstat string key Ex: maxATK
@@ -3102,306 +3269,226 @@ state.weaponModifiers = state.weaponModifiers || {
   condMod: 0,
 };
 
-const weaponMods = {
-  lasrifle: {
-    ammoMod: 0,
-    condMod: 0,
-  },
-  
-};
-
 weaponmodKeys = ["ammoMod", "condMod"];
-weaponNames = ["lasrifle"];
 weaponStatKeysForMod = ["ammo", "cond"];
 
-
-//CREATE new sc with Weapon Modifiers if sc doesnt exist
-function createIfNoWeaponmodSC(){
+// CREATE new sc with Weapon Modifiers if sc doesn't exist
+function createIfNoWeaponmodSC() {
   if (!storyCards.find(sc => sc.title === "Weapon Modifiers")) {
-    // If "Weapon Modifiers" card doesn't exist, create it
     addStoryCard("Weapon Modifiers", "Blank", "Weapons");
-
-    plrWeapon = "lasrifle";
-
-    // Fetch the "Weapon Modifiers" card
     const weaponmodSC = storyCards.find(sc => sc.title === "Weapon Modifiers");
-    weaponmodSC.description = `Format for Modifying: Modifier: num\nModifiers influence your starting stats and modify the exp you receive.\nYour race is ${capitalizeFirst(plrWeapon)}.`;
-
-    //Set weapon modifier values in SC based on weapon
+    weaponmodSC.description = `Format for Modifying: Modifier: num\nModifiers influence your weapon stats and modify the exp you receive.`;
     weaponmodKeys.forEach(key => {
-      state.weaponModifiers[key] = weaponMods[plrWeapon][key];
+      state.weaponModifiers[key] = 0;
     });
-
-    // Apply initial weapon mods to stats and display them to sc
-    weaponStatKeysForMod.forEach(key => {
-      // Modify normal stat
-      temp1 = state.lasrifleStats[key] * state.weaponModifiers[key + "Mod"]/100;
-      state.lasrifleStats[key] = state.lasrifleStats[key] + temp1;
-      state.lasrifleStats[key] = Math.round(state.lasrifleStats[key] * 100) / 100;
-
-      // Modify max stats
-      maxKey = "max" + capitalizeFirst(key);
-      temp2 = state.lasrifleStats[maxKey] * state.weaponModifiers[key + "Mod"]/100;
-      state.lasrifleStats[maxKey] = state.lasrifleStats[maxKey] + temp2;
-      state.lasrifleStats[maxKey] = Math.round(state.lasrifleStats[maxKey] * 100) / 100;
-
-    });
-
-    storeLasrifleToSC();
+    storeWeaponmodsToSC();
   }
 }
 
-//STORES and displays the modifiers to player in sc
-function storeWeaponmodsToSC(){
-  //Format player modifiers holder for SC 
-  formatForSC = [];
-  
-  weaponmodKeys.forEach((key, index) => {
-    const weaponmodName = key.replace("Mod","").toUpperCase();  //ATK
-    const weaponmodFormatPart = `${weaponmodName} Modifier: ${state.weaponModifiers[key]}%\n`; //ATK Modifier: 0%
-
-    //Holder to hold all formatted strings
-    formatForSC.push(weaponmodFormatPart);
+// STORES and displays the modifiers to weapons in sc
+function storeWeaponmodsToSC() {
+  let formatForSC = [];
+  weaponmodKeys.forEach((key) => {
+    const weaponmodName = key.replace("Mod", "").toUpperCase();
+    formatForSC.push(`${weaponmodName} Modifier: ${state.weaponModifiers[key]}%\n`);
   });
-  //log(formatForSC);
-
-  // Fetch the "Weapon Modifiers" card
   const weaponmodSC = storyCards.find(sc => sc.title === "Weapon Modifiers");
-
-  //Convert holder to string, clean commas, and finally store to sc entry
-  weaponmodSC.entry = String(formatForSC).replace(/,/g, '');
-
-  // Trim notes on char limit to prevent memory overfill
+  weaponmodSC.entry = formatForSC.join("").replace(/,/g, '');
   if (weaponmodSC.description.length > 3000) {
-    halfIndex = Math.floor(weaponmodSC.description.length / 2);
+    let halfIndex = Math.floor(weaponmodSC.description.length / 2);
     weaponmodSC.description = weaponmodSC.description.slice(0, halfIndex);
-
     console.log("Trimming weaponmodSC description to prevent memory overload.");
   }
 }
 
-//RETRIEVE data from sc and store to Weapon Modifiers
-function retrieveWeaponmodsFromSC(){
-  // Fetch the "Weapon Modifiers" card
+// RETRIEVE data from sc and store to Weapon Modifiers
+function retrieveWeaponmodsFromSC() {
   const weaponmodSC = storyCards.find(sc => sc.title === "Weapon Modifiers");
-
-  // Retrieve and split sc entry into (modName, value) lines
-  const weaponmodEntries = weaponmodSC.entry.split("\n"); //arr of strings
-
-  //Loop through each line of entry from the split and extract values
+  const weaponmodEntries = weaponmodSC.entry.split("\n");
   weaponmodEntries.forEach(entry => {
-      // Match and extract stat and max stat values using regex
-      const match = entry.trim().match(/^([A-Z]+)\s+Modifier:\s*(-?\d+(?:\.\d+)?)(?:%)?$/);
-      //log("mod sc match: " + match);
-
-      //Store value in holder
-      if (match) {
-        weaponmodName = match[1].toLowerCase() + 'Mod'; // e.g., "HP"
-        weaponmodValue = Number(match[2]); // e.g., 0
-
-        // Finally store modValue in playerModifier
-        //OR operator safeguards against null values    
-        state.weaponModifiers[weaponmodName] = modValue ?? state.weaponModifiers[weaponmodName];
-        
-      }
+    const match = entry.trim().match(/^([A-Z]+)\s+Modifier:\s*(-?\d+(?:\.\d+)?)(?:%)?$/);
+    if (match) {
+      let weaponmodName = match[1].toLowerCase() + 'Mod';
+      let weaponmodValue = Number(match[2]);
+      state.weaponModifiers[weaponmodName] = weaponmodValue ?? state.weaponModifiers[weaponmodName];
+    }
   });
-
-  //log(state.weaponModifiers);
 }
 
-/////////////////////////////////////////////////////////////////////////////////////
-
-
-
-//Initialize Lasrifle stats
-state.lasrifleStats = state.lasrifleStats || {
-
-  cond: 0,
-  ammo: 0,
-
-  
-
-  maxCond: 100,
-  maxAmmo: 50,
-
-};
-
-lrmaxStatKeys = ["maxCond", "maxAmmo",];
-lrStatKeys = ["cond", "ammo",];
-
-
-//NOTE: Players stats will be stored in a sc. CREATE initial stats. RETRIEVE from or STORE to player stats: SC -> <- state.lasriflestats
-
-//Function to create new weapon stats
-function newLasrifleStats(){  
-  //Get max level
-  state.lasrifleStats.maxLvl = 200
-
-  //Loop through each maxstat, and set max stats equal to max level
-  lrmaxStatKeys.forEach((mStat) => {
-    state.lasrifleStats[mStat] = state.lasrifleStats.maxLvl;
-  });
-  
-  //Give weapon initialized stats
-  lrStatKeys.forEach((stat) => {
-    state.lasrifleStats[stat] = randomInt(1,state.lasrifleStats.maxLvl);
-  });
-
-  
-  // Stat scaling
-  state.lasrifleStats.maxCond = 100
-  state.lasrifleStats.maxAmmo = 50
-
-  // Player starts at full health
-  state.lasrifleStats.cond = state.lasrifleStats.maxCond;
-  state.lasrifleStats.ammo = state.lasrifleStats.maxAmmo;
-
+// CREATE new story card for equipped weapon in "Equipped Gear" category if it doesn't exist
+function createIfNoEquippedWeaponSC() {
+  if (!storyCards.find(sc => sc.title === "Equipped Weapon")) {
+    addStoryCard("Equipped Weapon", "Currently equipped weapon.", "Equipped Gear");
+    // Optionally, set a description for the card
+    let eqSC = storyCards.find(sc => sc.title === "Equipped Weapon");
+    eqSC.description = "Stores the name of your currently equipped weapon. Format: Weapon Name";
+    eqSC.entry = ""; // Start empty
+  }
 }
 
-//CREATE new sc with lasriflestats if sc doesnt exist
-function createIfNoLasrifleSC(){
-  if (!storyCards.find(sc => sc.title === "Lasrifle")) {
-    // If "Lasrifle" card doesn't exist, create it
-    addStoryCard("Lasrifle", "Blank", "Weapons");
+// Store equipped weapon in the "Equipped Gear" category
+function storeEquippedWeaponToSC(weaponName) {
+  createIfNoEquippedWeaponSC();
+  let eqSC = storyCards.find(sc => sc.title === "Equipped Weapon");
+  eqSC.entry = weaponName || "";
+}
 
-    // Fetch the "Lasrifle" card
+// Retrieve equipped weapon from the "Equipped Gear" category
+function retrieveEquippedWeaponFromSC() {
+  let eqSC = storyCards.find(sc => sc.title === "Equipped Weapon");
+  return eqSC && eqSC.entry ? eqSC.entry : null;
+}
+
+
+// Initialize Weapon stats for currently equipped weapon
+function getCurrentWeaponName() {
+  // Use state.equippedWeapon if set, else default to first weapon card
+  if (state.equippedWeapon) return state.equippedWeapon;
+  const weaponCard = storyCards.find(sc => sc.type === "Weapons" || sc.category === "Weapons");
+  return weaponCard ? weaponCard.title : null;
+}
+
+// CREATE new sc with weaponstats if sc doesn't exist
+function createIfNoWeaponSC() {
+  // Only create starter weapons if NO weapon cards exist
+  if (!storyCards.some(sc => sc.type === "Weapons" || sc.category === "Weapons")) {
+    // Laspistol
+    addStoryCard("Laspistol", "A simple starter weapon.", "Weapons");
+    const laspistolSC = storyCards.find(sc => sc.title === "Laspistol");
+    laspistolSC.description = "Format for Modifying: Stat: num/maxNum";
+    laspistolSC.entry = "COND: 100/100\nAMMO: 50/50\nDMG TYPE: Laser\n";
+
+    // Lasrifle 
+    addStoryCard("Lasrifle", "A standard-issue rifle with burst fire capability.", "Weapons");
     const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
     lasrifleSC.description = "Format for Modifying: Stat: num/maxNum";
+    lasrifleSC.entry = "COND: 100/100\nAMMO: 50/50\nBurst Fire Mode: OFF\nDMG TYPE: Laser\n";
 
-    //Initialize and randomize new Lasrifle stats
-    newLasrifleStats();
-
-    storeLasrifleToSC();
+    // RS-43 Longstrike
+    addStoryCard("RS-43 Longstrike", "A powerful rifle with overcharge capability.", "Weapons");
+    const longstrikeSC = storyCards.find(sc => sc.title === "RS-43 Longstrike");
+    longstrikeSC.description = "Format for Modifying: Stat: num/maxNum";
+    longstrikeSC.entry = "COND: 100/100\nAMMO: 20/20\nOvercharge Mode: OFF\nDMG TYPE: Laser\n";
   }
 }
 
-// STORES and displays the stats to player in sc
-function storeLasrifleToSC(){
-  // Format player stats holder for SC 
-  formatForSC = [];
-  
-  lrmaxStatKeys.forEach((key, index) => {
-  // Remove 'max' and capitalize. Ex: maxCond -> COND
-  statName = key.substring(3).toUpperCase();
-
-  // Formatted stat line. Ex: COND: cond/maxCond
-  statFormatPart = `${statName}: ${state.lasrifleStats[statName.toLowerCase()]}/${state.lasrifleStats[key]}\n`;
-
-  // Push to holder for holding all formatted strings
-  formatForSC.push(statFormatPart);
-});
-
-//log(formatForSC);
-
-  // Fetch the "Lasrifle" card
-  const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
-
-   // Add burst fire mode status to display
-  formatForSC.push(`Burst Fire Mode: ${state.lasrifleStats.burstFireMode ? "ON" : "OFF"}\n`);
-
-  // Convert holder to string, clean commas, and finally store to sc entry
-  lasrifleSC.entry = String(formatForSC).replace(/,/g, '');
-
-  // Trim notes on char limit to prevent memory overfill
-  if (lasrifleSC.description.length > 3000) {
-    halfIndex = Math.floor(lasrifleSC.description.length / 2);
-    lasrifleSC.description = lasrifleSC.description.slice(0, halfIndex);
-
-    console.log("Trimming statSC description to prevent memory overload.");
+// STORES and displays weapon stats in sc
+function storeWeaponToSC(weaponName, weaponStatsOverride) {
+  weaponName = weaponName || getCurrentWeaponName();
+  if (!weaponName) return;
+  const weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
+  if (!weaponSC) return;
+  let stats = weaponStatsOverride || retrieveWeaponStatsFromEntry(weaponSC.entry);
+  let formatForSC = [];
+  formatForSC.push(`COND: ${stats.cond}/${stats.maxCond}\n`);
+  formatForSC.push(`AMMO: ${stats.ammo}/${stats.maxAmmo}\n`);
+  // Only include these lines if they already exist in the entry
+  if (/^Burst Fire Mode:/m.test(weaponSC.entry)) {
+    formatForSC.push(`Burst Fire Mode: ${stats.burstFireMode ? "ON" : "OFF"}\n`);
+  }
+  if (/^Overcharge Mode:/m.test(weaponSC.entry)) {
+    formatForSC.push(`Overcharge Mode: ${stats.overchargeMode ? "ON" : "OFF"}\n`);
+  }
+  // Always include DMG TYPE
+  formatForSC.push(`DMG TYPE: ${stats.dmgType || "Laser"}\n`);
+  weaponSC.entry = formatForSC.join("").replace(/,/g, '');
+  if (weaponSC.description.length > 3000) {
+    let halfIndex = Math.floor(weaponSC.description.length / 2);
+    weaponSC.description = weaponSC.description.slice(0, halfIndex);
+    console.log("Trimming weaponSC description to prevent memory overload.");
   }
 }
 
-// RETRIEVE data from sc and store to lasrifle
-function retrieveLasrifleFromSC(){
-  const lrstatMappings = {
-    //lvl: 'maxLvl',
-    cond: 'maxCond',
-    ammo: 'maxAmmo',
-    
-  };
-  
-  //Fetch SC
-  const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
 
-  // Retrieve and split sc entry into array of stat lines
-  const lasrifleEntries = lasrifleSC.entry.split("\n"); //arr of strings
-
-  // Loop through each stat line in array and extract values
-  lasrifleEntries.forEach(entry => {
-    // Lvl retrieval exception
-    const lvlMatch = entry.trim().match(/^(?:LVL|LEVEL)\s*[:\-]?\s*(\d+)$/i);
-    if (lvlMatch) {
-      state.lasrifleStats.maxLvl = Number(lvlMatch[1]);
-      return; // Skip lvl match when found
-    }
-    
-    // Match and extract (statname, stat, maxStat)
-    const match = entry.trim().match(/^([a-zA-Z]+)\s*:\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
-    log("stat sc match: " + match); // ATK: ratk/maxRatk
-
-    //Store value in holder
+// Helper: Parse weapon stats from entry string
+function retrieveWeaponStatsFromEntry(entry) {
+  let stats = { cond: 100, ammo: 50, maxCond: 100, maxAmmo: 50, burstFireMode: false, overchargeMode: false, dmgType: "Laser" };
+  entry.split("\n").forEach(line => {
+    let match = line.match(/^COND:\s*(\d+)\s*\/\s*(\d+)/i);
     if (match) {
-      const statName = match[1].toLowerCase();  // stat name (Ex: 'ratk')
-      const statValue = Number(match[2]);    // current stat value (Ex: '50')
-      const maxStatValue = Number(match[3]); // max stat value (Ex: '100')
-
-      // Finally store stat and max stat in the lasrifleStats if name is valid
-      if (lrstatMappings[statName]) { //Ex: lrstatMappings[ratk] = 'maxRatk'
-        //OR operator safeguards against null values    
-        state.lasrifleStats[statName] = statValue ?? state.lasrifleStats[statName];
-        state.lasrifleStats[lrstatMappings[statName]] = maxStatValue ?? state.lasrifleStats[lrstatMappings[statName]];
-      }
+      stats.cond = Number(match[1]);
+      stats.maxCond = Number(match[2]);
+    }
+    match = line.match(/^AMMO:\s*(\d+)\s*\/\s*(\d+)/i);
+    if (match) {
+      stats.ammo = Number(match[1]);
+      stats.maxAmmo = Number(match[2]);
+    }
+    match = line.match(/^Burst Fire Mode:\s*(ON|OFF)$/i);
+    if (match) {
+      stats.burstFireMode = match[1].toUpperCase() === "ON";
+    }
+    match = line.match(/^Overcharge Mode:\s*(ON|OFF)$/i);
+    if (match) {
+      stats.overchargeMode = match[1].toUpperCase() === "ON";
+    }
+    match = line.match(/^DMG TYPE:\s*(.+)$/i);
+    if (match) {
+      stats.dmgType = match[1].trim();
     }
   });
-
-  log(state.lasrifleStats);
+  return stats;
 }
 
-// Function to increment the lasrifle's stats (cond and ammo only)
-function statUpLasrifle(statName, incAmt) {
-    // Ensure incAmt is a number
-    if (typeof incAmt !== "number") {
-        incAmt = 0;
-    }
-    incAmt = Number(incAmt);
-    incAmt = Math.round(incAmt * 100) / 100;
-    log("incAmt: " + incAmt + " " + statName);
-
-    // Get maxstat string key Ex: maxCond
-    const maxStatName = "max" + statName.charAt(0).toUpperCase() + statName.slice(1);
-
-    // Save current stat
-    let stat = state.lasrifleStats[statName];
-    log("stat: " + stat);
-
-    // Only allow cond and ammo to be modified
-    if (statName === "cond" || statName === "ammo") {
-        state.lasrifleStats[statName] += incAmt;
-
-        // Only whole numbers for ammo, cond can be decimal if needed
-        if (statName === "ammo") {
-            state.lasrifleStats[statName] = Math.round(state.lasrifleStats[statName]);
-        } else {
-            state.lasrifleStats[statName] = Math.round(state.lasrifleStats[statName] * 100) / 100;
-        }
-
-        // Clamp to max value
-        if (state.lasrifleStats[statName] > state.lasrifleStats[maxStatName]) {
-            state.lasrifleStats[statName] = state.lasrifleStats[maxStatName];
-        }
-        if (state.lasrifleStats[statName] < 0) {
-            state.lasrifleStats[statName] = 0;
-        }
-
-        // Log stat change in Lasrifle card description
-        const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
-        let sign = incAmt >= 0 ? "⬆️" : "🔻";
-        lasrifleSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} :  ${stat} → ${state.lasrifleStats[statName]} (Change: ${incAmt})\n` + lasrifleSC.description;
-    }
-
-    storeLasrifleToSC();
+// RETRIEVE data from sc and store to weapon
+function retrieveWeaponFromSC(weaponName) {
+  weaponName = weaponName || getCurrentWeaponName();
+  if (!weaponName) return;
+  const weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
+  if (!weaponSC) return;
+  return retrieveWeaponStatsFromEntry(weaponSC.entry);
 }
 
+// Helper: Update weapon modes in story card
+function updateWeaponModes(weaponName, weaponStats) {
+  let weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
+  if (weaponSC) {
+    let formatForSC = [];
+    formatForSC.push(`COND: ${weaponStats.cond}/${weaponStats.maxCond}\n`);
+    formatForSC.push(`AMMO: ${weaponStats.ammo}/${weaponStats.maxAmmo}\n`);
+    // Only include these lines if they already exist in the entry
+    if (/^Burst Fire Mode:/m.test(weaponSC.entry)) {
+      formatForSC.push(`Burst Fire Mode: ${weaponStats.burstFireMode ? "ON" : "OFF"}\n`);
+    }
+    if (/^Overcharge Mode:/m.test(weaponSC.entry)) {
+      formatForSC.push(`Overcharge Mode: ${weaponStats.overchargeMode ? "ON" : "OFF"}\n`);
+    }
+    formatForSC.push(`DMG TYPE: ${weaponStats.dmgType || "Laser"}\n`);
+    weaponSC.entry = formatForSC.join("").replace(/,/g, '');
+  }
+}
+
+function detectAttack(text) {
+  return detectCombatAction(text, attackWords, 'attack');
+}
+function detectRangedattack(text) {
+  return detectCombatAction(text, rangedattackWords, 'ranged');
+}
+
+
+// Function to increment the weapon's stats (cond and ammo only)
+function statUpWeapon(statName, incAmt, weaponName) {
+  weaponName = weaponName || getCurrentWeaponName();
+  if (!weaponName) return;
+  const weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
+  if (!weaponSC) return;
+  let stats = retrieveWeaponStatsFromEntry(weaponSC.entry);
+  incAmt = Number(incAmt) || 0;
+  let maxStatName = "max" + statName.charAt(0).toUpperCase() + statName.slice(1);
+  let prev = stats[statName];
+  stats[statName] += incAmt;
+  if (stats[statName] > stats[maxStatName]) stats[statName] = stats[maxStatName];
+  if (stats[statName] < 0) stats[statName] = 0;
+  // Log stat change in weapon story card
+  let sign = incAmt >= 0 ? "⬆️" : "🔻";
+  weaponSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} : ${prev} → ${stats[statName]} (Change: ${incAmt})\n` + weaponSC.description;
+  // Store weapon stats back to SC
+  let formatForSC = [];
+  formatForSC.push(`COND: ${stats.cond}/${stats.maxCond}\n`);
+  formatForSC.push(`AMMO: ${stats.ammo}/${stats.maxAmmo}\n`);
+  formatForSC.push(`Burst Fire Mode: ${stats.burstFireMode ? "ON" : "OFF"}\n`);
+  weaponSC.entry = formatForSC.join("").replace(/,/g, '');
+}
 
 /////////////////////////////////////////////////////////////////////////////////////
 
@@ -3452,7 +3539,7 @@ function retrieveInvFromSC(){
   log("fromInvSC: " + fromInvSC);
 
   // Use regex to extract item names and amounts (Ex: Ball (Amt: 2), etc. )
-  matches = fromInvSC.matchAll(/(.+?)\s*\(.*?(\d+(?:\.\d+)?).*?\)/g);
+  matches = fromInvSC.matchAll(/(.+?)\s*\(Amt:\s*(\d+(?:\.\d+)?)\)/gi);
 
   itemHold = [];
   amtHold = [];
@@ -3468,287 +3555,85 @@ function retrieveInvFromSC(){
   //console.log("Amounts:", state.playerInv.amt);
 }
 
-// Detect when the player stores item and amt to their inventory
+
 function detectStoreInv(text) {
-  // Initialize condition var
-  startEquip = false;
+    // Remove punctuation except hyphens, split into words
+    let wordsArr = text.replace(/[.,!?]/g, '').replace(/\s+/g, ' ').trim().split(' ');
 
-  // Verify player is not dialoguing (case-insensitive)
-  dialogueCheck = true;
-  textLower = text.toLowerCase();
-  dialoguePhrases.forEach(phrase => {
-    if (textLower.includes(phrase.toLowerCase())) {
-      // Disable check dialoguing exists
-      dialogueCheck = false;
+    // Find the index of the first equip/store verb
+    let equipIndex = wordsArr.findIndex(w => equipWords.some(eq => w.toLowerCase() === eq.toLowerCase()));
+    if (equipIndex === -1) return text;
+
+    // Find the index of the first inventory word (optional)
+    let invIndex = wordsArr.findIndex(w => invWords.some(inv => w.toLowerCase() === inv.toLowerCase()));
+
+    // Extract item words between equip verb and inventory noun, or just after equip verb
+    let itemWords;
+    if (invIndex !== -1 && equipIndex < invIndex - 1) {
+        itemWords = wordsArr.slice(equipIndex + 1, invIndex);
+    } else {
+        itemWords = wordsArr.slice(equipIndex + 1, equipIndex + 4); // up to 3 words after verb
     }
-  });
 
-  // If not a dialogue, check for inventory words in input then split text into words arr
-  if (dialogueCheck == true) {
-    equipTextInput = [];
-    newText = wordsToNumber(text);
-    equipTextInput = findTargetsThenSplit(newText, invWords, equipTextInput, true);
-    //equipTextInput = findTargetsThenSplit(text,equipWords,equipTextInput,true);
-    console.log("equipTextInput: " + equipTextInput);
-
-
-    // If there are inventory words, check for "you equip" in words arr using indices
-    if (equipTextInput != null) {
-      //Get indices of all equip words in words arr
-      allEquipWordIndices = [];
-      allEquipWordIndices = indicesOfTargets(equipTextInput, equipWords);
-      log("allEquipWordIndices: " + allEquipWordIndices);
-
-
-      // If "you" is found within x indices of equip words, start equip process
-      if (allEquipWordIndices != null) {
-        startEquip = checkYouBeforeIndicesArr(equipTextInput, allEquipWordIndices, 3) || checkAndBeforeIndicesArr(equipTextInput, allEquipWordIndices, 2);
-        log("startEquip:" + startEquip);
-      }
-    }
-  }
-
-  // Start equip process when "you equip + inventory" is found in words arr
-  if (startEquip == true) {
-    // Initialize arrays for potential items from filtered input
-    potentialItem = {
-      tokens: [],
-      indices: [],
-      weights: []
-    };
-
-    // Filter out words that arent potential items
-    potentialItem.tokens = equipTextInput.filter(word =>
-      ![...stopWords, ...equipWords, ...talentWords, ...dodgeWords, ...castWords, ...learnWords, ...invWords, ...numWords, ...youWords, ...selfWords, ...consumeWords, ...titleWords].some(fromArr => fromArr.toLowerCase() === word.toLowerCase())
+    // Remove stopwords, equip/inventory words, and trailing verbs/prepositions
+    itemWords = itemWords.filter(w =>
+        !equipWords.includes(w.toLowerCase()) &&
+        !invWords.includes(w.toLowerCase()) &&
+        !stopWords.includes(w.toLowerCase())
     );
-    potentialItem.tokens = potentialItem.tokens.filter(word => !/^\d+$/.test(word));
-    console.log("potentialItem.tokens: " + potentialItem.tokens);
+    while (itemWords.length > 1 && /(placing|putting|adding|storing|taking|grabbing|equipping|looting|snatching|it|them|this|that)/i.test(itemWords[itemWords.length - 1])) {
+        itemWords.pop();
+    }
 
-    if (potentialItem.tokens.length > 0) {
-      // Get potential item indices from unfiltered input text
-      potentialItem.indices = indicesOfTargets(equipTextInput, potentialItem.tokens);
+    // Now check if the first word is a number or number word
+    let itemAmt = 1;
+    const numberWordsRegex = /^(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)$/i;
+    if (itemWords.length > 1 && numberWordsRegex.test(itemWords[0])) {
+        itemAmt = parseInt(wordsToNumber(itemWords[0]).trim());
+        itemWords = itemWords.slice(1);
+    } else if (itemWords.length > 1 && /^\d+$/.test(itemWords[0])) {
+        itemAmt = parseInt(itemWords[0]);
+        itemWords = itemWords.slice(1);
+    }
 
-      // Remove duplicate indices
-      potentialItem.indices = [...new Set(potentialItem.indices)];
-      log("potentialItem.indices: " + potentialItem.indices);
+    // Singularize last word if it's a simple plural (e.g., "cells" -> "cell"), but keep hyphens
+    if (
+        itemWords.length > 0 &&
+        /s$/.test(itemWords[itemWords.length - 1]) &&
+        !/ss$/.test(itemWords[itemWords.length - 1])
+    ) {
+        itemWords[itemWords.length - 1] = itemWords[itemWords.length - 1].replace(/s$/, '');
+    }
 
-      // Initialize weight array to hold 0 for each potential item token
-      potentialItem.weights = [];
-      potentialItem.indices.forEach(word => { potentialItem.weights.push(0); });
-      //log("potentialItem.weights: " + potentialItem.weights);
+    // Join remaining words as item name (hyphens are preserved)
+    let itemName = itemWords.join(' ').trim();
 
-      // Get all indices of biased words in text, set to [] if null to avoid errors
-      allEquipWordIndices = allEquipWordIndices || [];
-      invWordIndices = indicesOfTargets(equipTextInput, invWords) || [];
-      numIndices = getDigitIndices(equipTextInput) || [];
-      fromIndices = indicesOf(equipTextInput, "from") || [];
-      theIndices = indicesOf(equipTextInput, "the") || [];
-      aIndices = indicesOf(equipTextInput, "a") || [];
-      anIndices = indicesOf(equipTextInput, "an") || [];
-      ofIndices = indicesOf(equipTextInput, "of") || [];
-      inIndices = indicesOf(equipTextInput, "in") || [];
-      intoIndices = indicesOf(equipTextInput, "into") || [];
-      andIndices = indicesOf(equipTextInput, "and") || [];
-      itIndices = indicesOf(equipTextInput, "it") || [];
-      itsIndices = indicesOf(equipTextInput, "its") || [];
-      themIndices = indicesOf(equipTextInput, "them") || [];
-      thatIndices = indicesOf(equipTextInput, "that") || [];
-      thenIndices = indicesOf(equipTextInput, "then") || [];
+    // Final sanity checks
+    if (!itemName || itemName.length < 2) {
+        return text; // Don't add junk entries
+    }
 
-      // Weigh each token based on distance before or after biased words
-      // If token is near an "equip word"
-      if (allEquipWordIndices.length > 0) {
-        // Ex: You place sword
-        isAfterIndex(potentialItem.indices, allEquipWordIndices, 0, 3, 2.5, potentialItem.weights);
-        isAfterIndex(potentialItem.indices, allEquipWordIndices, 4, 5, 1.5, potentialItem.weights);
-        isAfterIndex(potentialItem.indices, allEquipWordIndices, 6, 10, 0.5, potentialItem.weights);
-      }
-
-      // If token is near an "inventory word"
-      if (invWordIndices.length > 0) {
-        // First 2 words before inv likely "in your" bag (Ex: ...sword in your bag)
-        isBeforeIndex(potentialItem.indices, invWordIndices, 0, 2, -2.5, potentialItem.weights);
-        isBeforeIndex(potentialItem.indices, invWordIndices, 2, 4, 2, potentialItem.weights);
-        isBeforeIndex(potentialItem.indices, invWordIndices, 5, 6, 1.5, potentialItem.weights);
-      }
-
-      // If token is near "number"
-      if (numIndices.length > 0) {
-        // Ex: take 1 sword
-        isAfterIndex(potentialItem.indices, numIndices, 0, 3, 2.5, potentialItem.weights);
-      }
-
-      // If token is near "the" 
-      if (theIndices.length > 0) {
-        // Ex: take the sword
-        isAfterIndex(potentialItem.indices, theIndices, 0, 4, 2.5, potentialItem.weights);
-      }
-
-      // If token is near "from"
-      if (fromIndices.length > 0) {
-        // Ex: take sword from
-        isBeforeIndex(potentialItem.indices, fromIndices, 0, 2, 1, potentialItem.weights);
-        isBeforeIndex(potentialItem.indices, fromIndices, 3, 4, 0.5, potentialItem.weights);
-
-        isAfterIndex(potentialItem.indices, fromIndices, 0, 3, -2, potentialItem.weights);
-
-      }
-      // If token is near "a/an"
-      if (aIndices.length > 0 || anIndices.length > 0) {
-        // Ex: take a sword
-        isAfterIndex(potentialItem.indices, aIndices, 0, 4, 1.5, potentialItem.weights);
-        isAfterIndex(potentialItem.indices, anIndices, 0, 4, 1.5, potentialItem.weights);
-      }
-
-      // If token is near "of" 
-      if (ofIndices.length > 0) {
-        // Ex: take 3 of the swords
-        isAfterIndex(potentialItem.indices, ofIndices, 0, 1, 0.5, potentialItem.weights);
-        isAfterIndex(potentialItem.indices, ofIndices, 2, 4, 1, potentialItem.weights);
-      }
-
-      // If token is near "in/into"  
-      if (inIndices.length > 0 || intoIndices.length > 0) {
-        // Ex: take sword and put in
-        isBeforeIndex(potentialItem.indices, inIndices, 0, 8, 1, potentialItem.weights);
-        isBeforeIndex(potentialItem.indices, intoIndices, 0, 8, 1, potentialItem.weights);
-
-        isAfterIndex(potentialItem.indices, inIndices, 0, 3, -2, potentialItem.weights);
-      }
-
-      // If token is near "and"
-      if (andIndices.length > 0) {
-        // Ex: sword, gun, and shield
-        isBeforeIndex(potentialItem.indices, andIndices, 0, 3, 1, potentialItem.weights);
-        isBeforeIndex(potentialItem.indices, andIndices, 4, 6, 0.5, potentialItem.weights);
-
-        isAfterIndex(potentialItem.indices, andIndices, 0, 3, 1.5, potentialItem.weights);
-
-      }
-
-      // If token is near "it/its"
-      if (itIndices.length > 0 || itsIndices.length > 0) {
-        //Ex: "apple and put it"
-        isBeforeIndex(potentialItem.indices, itIndices, 0, 3, -1, potentialItem.weights);
-        isBeforeIndex(potentialItem.indices, itsIndices, 4, 8, 1.5, potentialItem.weights);
-
-        isAfterIndex(potentialItem.indices, itsIndices, 0, 3, -2, potentialItem.weights);
-      }
-
-      // If token is near "them"
-      if (themIndices.length > 0) {
-        // Ex: "and put them"
-        isBeforeIndex(potentialItem.indices, themIndices, 0, 3, -1.5, potentialItem.weights);
-        isBeforeIndex(potentialItem.indices, themIndices, 4, 8, 1.5, potentialItem.weights);
-
-        isAfterIndex(potentialItem.indices, themIndices, 0, 2, -2, potentialItem.weights);
-      }
-
-      // If token is near "that"
-      if (thatIndices.length > 0) {
-        // Ex: take that apple
-        isAfterIndex(potentialItem.indices, thatIndices, 0, 3, 1.5, potentialItem.weights);
-      }
-
-      // If token is near "then"
-      if (thenIndices.length > 0) {
-        // Ex: take the sword then the apple
-        isAfterIndex(potentialItem.indices, thenIndices, 0, 3, 1.5, potentialItem.weights);
-
-        isBeforeIndex(potentialItem.indices, thenIndices, 0, 3, 1.5, potentialItem.weights);
-      }
-      log("potentialItem.weights: " + potentialItem.weights);
-
-      // Initialize holder for item tokens
-      itemNameParts = [];
-
-      // Find last index that passes weight threshold to know when last item tokens will be stored
-      for (let i = potentialItem.weights.length - 1; i >= 0; i--) {
-        if (potentialItem.weights[i] >= 4) {
-          lastWeightIndex = i;
-          break;
-        }
-      }
-
-      // Push potential items into holder if they pass weight threshold
-      potentialItem.weights.forEach((weight, index) => {
-        if (weight >= 4) {
-          itemNameParts.push(potentialItem.tokens[index]);
-          log("itemNameParts: " + itemNameParts);
-
-          // Slice text chunk at potential item index for end of item testing
-          textChunk = newText.replace(">", "")
-            .trim()
-            .split(" ")
-            .slice(potentialItem.indices[index], potentialItem.indices[index] + 2)
-            .join(" ");
-          log("textChunk: " + textChunk);
-
-          // Test for end of item name to join and store item from holder
-          pattern = new RegExp(`\\b${potentialItem.tokens[index]}\\b\\s*(,|and|\\.)`, 'i');
-          itemEnd = textChunk.search(pattern);
-          log("itemEnd: " + itemEnd);
-
-          if (itemEnd !== -1 || index == lastWeightIndex) {
-            // Combine item name parts into final item name
-            finalItemName = itemNameParts.join(" ");
-            log("finalItemName: " + finalItemName);
-
-            // Clear the array after item is stored for next possible item
-            itemNameParts = [];
-
-            // Get item amt
-            itemAmt = findClosestNumberBefore(equipTextInput, potentialItem.indices[index]);
-
-            if (!itemAmt) {
-              itemAmt = 1;
-            }
-
-            // Get index if already existing item in player inv 
-            alreadyItemIndex = [];
-            alreadyItemIndex = indicesOf(state.playerInv.item, finalItemName);
-
-            // Increment item amt if already existing in inv
-            if (alreadyItemIndex) {
-              state.playerInv.amt[alreadyItemIndex] += itemAmt;
-              state.msgHolder = state.msgHolder + `🎒 +${itemAmt} ${state.playerInv.item[alreadyItemIndex]}\n`;
-            }
-            else {
-              // Else new item is stored
-              state.playerInv.item.push(finalItemName);
-              state.playerInv.amt.push(itemAmt);
-              state.msgHolder = state.msgHolder + `🎒 +${itemAmt} ${finalItemName}\n`;
-            }
-          }
-        }
-      });
-
-      //Update SC
-      storeInvToSC();
-
-      //TODO: Diversify text appendment
-      return text = text + " It remains in your possession."
-
-    }//end of filtered array not empty
-
-  }//end of start equip
-
-  return text;
+    // Add to inventory (merge with existing if present)
+    let alreadyIndex = state.playerInv.item.findIndex(i => i.toLowerCase() === itemName.toLowerCase());
+    if (alreadyIndex !== -1) {
+        state.playerInv.amt[alreadyIndex] += itemAmt;
+    } else {
+        state.playerInv.item.push(itemName);
+        state.playerInv.amt.push(itemAmt);
+    }
+    state.msgHolder += `🎒 +${itemAmt} ${itemName}\n`;
+    storeInvToSC();
+    return text + "🎒";
 }
+///Player skills will be stored in an sc. CREATE initial sc. Skills will STORE TO or RETREIVE FROM sc.
 
-/////////////////////////////////////////////////////////////////////////////////////
+// Initialize player skills (ensure always defined for stateless AI Dungeon)
 
-//Initialize player skills
 state.playerSkills = state.playerSkills || {
   name: [],
   lvl: [],
   cost: []
 };
-console.log("state.playerSkills.name: " + state.playerSkills.name);
-console.log("state.playerSkills.lvl: " + state.playerSkills.lvl);
-console.log("state.playerSkills.cost: " + state.playerSkills.cost);
-
-///Player skills will be stored in an sc. CREATE initial sc. Skills will STORE TO or RETREIVE FROM sc.
 
 //Function to create new class skills for player and store to their skills
 function newClassSkills(classString,skillArray){
@@ -4753,285 +4638,195 @@ function detectConsuming(text){
   return text;
 }
 
-function detectAttack(text){
-  startAttack = false;
-    
-  // Verify player is not dialoguing (case-insensitive)
-  dialogueCheck = true;
-  textLower = text.toLowerCase();
+// --- Consolidated Attack and Ranged Attack Logic ---
+
+function getActionRepeatCount(text) {
+  // Match "twice", "thrice", "x3", "3 times", etc.
+  let match = text.match(/(\d+)\s*(?:times|x)?/i);
+  if (match) {
+    let count = parseInt(match[1]);
+    if (!isNaN(count) && count > 0) return Math.min(count, 10);
+  }
+  // Handle "twice" and "thrice"
+  if (/twice/i.test(text)) return 2;
+  if (/thrice/i.test(text)) return 3;
+  return 1;
+}
+
+function detectCombatAction(text, actionWords, actionType) {
+  let startAction = false;
+  let repeatCount = getActionRepeatCount(text);
+
+  // Dialogue check
+  let dialogueCheck = true;
+  let textLower = text.toLowerCase();
   dialoguePhrases.forEach(phrase => {
-    if(textLower.includes(phrase.toLowerCase())){
-      // Disable check dialoguing exists
+    if (textLower.includes(phrase.toLowerCase())) {
       dialogueCheck = false;
     }
   });
 
-  //If player is not dialoguing, check input for atk words and split the input
-  if(dialogueCheck == true){
-    attackTextInput = []
-    attackTextInput = findTargetsThenSplit(text,attackWords,attackTextInput,true);
-    console.log("attackTextInput simplified: " + attackTextInput);
-
-    //If input has atk words get their indices
-    if(attackTextInput != null){
-      allAttackWordIndices = [];
-      allAttackWordIndices = indicesOfTargets(attackTextInput,attackWords);
-      log("allAttackWordIndices:" + allAttackWordIndices);
-
-      //Detect if there is  you + atk or and + atk
-      if(allAttackWordIndices != null){
-        startAttack = checkYouBeforeIndicesArr(attackTextInput,allAttackWordIndices,3) || checkAndBeforeIndicesArr(attackTextInput,allAttackWordIndices,2);
-        log("startAttack: "+ startAttack)
+  // Action word detection
+  if (dialogueCheck) {
+    let actionTextInput = findTargetsThenSplit(text, actionWords, [], true);
+    if (actionTextInput != null) {
+      let allActionWordIndices = indicesOfTargets(actionTextInput, actionWords);
+      if (allActionWordIndices != null) {
+        startAction = checkYouBeforeIndicesArr(actionTextInput, allActionWordIndices, 3) ||
+                     checkAndBeforeIndicesArr(actionTextInput, allActionWordIndices, 2);
       }
     }
   }
 
-  if(startAttack){
-    // Get the player's attack and speed stats
-    plrAtk = state.playerStats.atk;
-    plrSpd = state.playerStats.spd;
-
-    // Define attack strength ranges with corresponding attack messages
-    const atkRanges = [
-      { min: 0, max: 10, atk: attackTier1 },
-      { min: 10, max: 20, atk: attackTier2 },
-      { min: 20, max: 30, atk: attackTier3 },
-      { min: 30, max: 40, atk: attackTier4 },
-      { min: 40, max: 50, atk: attackTier5 },
-      { min: 50, max: 60, atk: attackTier6 },
-      { min: 60, max: 70, atk: attackTier7 },
-      { min: 70, max: 80, atk: attackTier8 },
-      { min: 80, max: 90, atk: attackTier9 },
-      { min: 90, max: Infinity, atk: attackTier10 }
-    ];
-
-
-    // Define speed stat ranges with corresponding speed messages
-    const spdRanges = [
-      { min: 0, max: 10, spd: atkSpdTier1 },
-      { min: 10, max: 20, spd: atkSpdTier2 },
-      { min: 20, max: 30, spd: atkSpdTier3 },
-      { min: 30, max: 40, spd: atkSpdTier4 },
-      { min: 40, max: 50, spd: atkSpdTier5 },
-      { min: 50, max: 60, spd: atkSpdTier6 },
-      { min: 60, max: 70, spd: atkSpdTier7 },
-      { min: 70, max: 80, spd: atkSpdTier8 },
-      { min: 80, max: 90, spd: atkSpdTier9 },
-      { min: 90, max: Infinity, spd: atkSpdTier10 }
-    ];
-
-
-    // Calculate energy requirements for attack
-    atkEnergyLoss = (2 * (plrAtk/10) + randomInt(0,5)) * -1;
-    if(plrAtk > 100){
-      atkEnergyLoss = (20 + plrAtk/25) * -1;
+  // Only check for equipped weapon if a ranged action is actually being attempted!
+  let weaponName, weaponStats;
+  if (actionType === 'ranged' && startAction) {
+    weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+    if (!weaponName) {
+      state.msgHolder += "You do not have a weapon equipped for ranged attacks.\n";
+      text += " You fumble for a weapon, but nothing is equipped.";
+      return text;
     }
-    log("Atk energy loss: " + atkEnergyLoss);
+    state.equippedWeapon = weaponName; // cache for this turn
+    weaponStats = retrieveWeaponFromSC(weaponName) || { cond: 100, ammo: 50, maxCond: 100, maxAmmo: 50, burstFireMode: false, overchargeMode: false };
 
-    // Attack energy check defaults to false
-    atkEnergyCheck = false;
-    // If player has enough energy, turn on check
-    if (state.playerStats.ep >= Math.abs(atkEnergyLoss) && state.playerStats.ep >= 0) {
-      atkEnergyCheck = true;
+    if (textLower.includes("burst fire")) {
+      weaponStats.burstFireMode = !weaponStats.burstFireMode;
+      updateWeaponModes(weaponName, weaponStats);
     }
-    log("atkEnergyCheck: " + atkEnergyCheck);
-
-    // If player does not have enough energy to attack
-    if(!atkEnergyCheck){
-      text = text + ` You are too exhausted to attack.`
-      //todo: expand text
+    if (textLower.includes("overcharge")) {
+      weaponStats.overchargeMode = !weaponStats.overchargeMode;
+      updateWeaponModes(weaponName, weaponStats);
     }
+  }
 
-    // If player has enough energy to attack, execute the attack
-    if (atkEnergyCheck) {
-      // Check the player's speed range and create a message based on their speed
-      for (let range of spdRanges) {
-        if (plrSpd >= range.min && plrSpd < range.max) {
-          // Append the speed message to the attack text
-          text = text + ` ${range.spd[randomInt(0, range.spd.length - 1)]}`;
-
-          // Attacking grants SPD exp
-          statUp("spd", randomFloat(0.01, 1));
-          break;
-        }
-      }
-
-      // Check the player's attack range/strength, check energy requirement, and save attack text
-      for (let range of atkRanges) {
-        if (plrAtk >= range.min && plrAtk < range.max) {
-          // Save the attack message based on the attack strength
-          text = text + ` and ${range.atk[randomInt(0, range.atk.length - 1)].toLowerCase()}`;
-
-          // Attacking grants ATK exp
-          statUp("atk", randomFloat(0.01, 1));
-
-          break;
-        }
-      }
-
-      // Apply energy loss from attack
-      statUp("ep", atkEnergyLoss);
-
-      // Determine if the attack has a luck modifier
-      atkLuckRoll = randomInt(1, 100); // Generate a random luck roll between 1 and 100
-      log("atkLuckRoll: " + atkLuckRoll); // Log the luck roll for debugging
-
-      if (atkLuckRoll <= state.playerStats.lck && atkLuckRoll >= 1) {
-        // If the luck roll is within the player's luck range, append a lucky phrase to the text
-        text = text + ` ${graspPhrases[randomInt(0, graspPhrases.length - 1)]} ${luckyPhrases[randomInt(0, luckyPhrases.length - 1)]}.`;
-
-        //Grant the player luck exp for using luck
-        statUp("lck", randomFloat(0.01, 1));
-      }
-
-
-      storeStatsToSC();
-    } // End of has atk energy
-  } // End of startAttack
-
+  //impliments multiple actions
+  if (startAction) {
+    let resultText = text;
+    for (let i = 0; i < repeatCount; i++) {
+      resultText = executeAction(resultText, actionType, weaponName, weaponStats);
+    }
+    if (repeatCount > 1) {
+      resultText += ` (Action repeated ${repeatCount} times)`;
+    }
+    return resultText;
+  }
   return text;
 }
 
-function detectRangedattack(text){
-  startRangedattack = false;
-    
-  // Verify player is not dialoguing (case-insensitive)
-  dialogueCheck = true;
-  textLower = text.toLowerCase();
-  dialoguePhrases.forEach(phrase => {
-    if(textLower.includes(phrase.toLowerCase())){
-      // Disable check dialoguing exists
-      dialogueCheck = false;
-    }
-  });
+function executeAction(text, actionType, weaponName, weaponStats) {
+  let stat, spd, statRanges, spdRanges, resourceCost, resourceCheck;
+  if (actionType === 'attack') {
+    stat = state.playerStats.atk;
+    spd = state.playerStats.spd;
+    statRanges = [
+      { min: 0, max: 10, arr: attackTier1 },
+      { min: 10, max: 20, arr: attackTier2 },
+      { min: 20, max: 30, arr: attackTier3 },
+      { min: 30, max: 40, arr: attackTier4 },
+      { min: 40, max: 50, arr: attackTier5 },
+      { min: 50, max: 60, arr: attackTier6 },
+      { min: 60, max: 70, arr: attackTier7 },
+      { min: 70, max: 80, arr: attackTier8 },
+      { min: 80, max: 90, arr: attackTier9 },
+      { min: 90, max: Infinity, arr: attackTier10 }
+    ];
+    spdRanges = [
+      { min: 0, max: 10, arr: atkSpdTier1 },
+      { min: 10, max: 20, arr: atkSpdTier2 },
+      { min: 20, max: 30, arr: atkSpdTier3 },
+      { min: 30, max: 40, arr: atkSpdTier4 },
+      { min: 40, max: 50, arr: atkSpdTier5 },
+      { min: 50, max: 60, arr: atkSpdTier6 },
+      { min: 60, max: 70, arr: atkSpdTier7 },
+      { min: 70, max: 80, arr: atkSpdTier8 },
+      { min: 80, max: 90, arr: atkSpdTier9 },
+      { min: 90, max: Infinity, arr: atkSpdTier10 }
+    ];
+    resourceCost = (stat > 100) ? (20 + stat / 25) * -1 : (2 * (stat / 10) + randomInt(0, 5)) * -1;
+    resourceCheck = state.playerStats.ep >= Math.abs(resourceCost) && state.playerStats.ep >= 0;
+    if (!resourceCheck) return text + ` You are too exhausted to attack.`;
+  } else {
+    stat = state.playerStats.ratk;
+    spd = state.playerStats.spd;
+    statRanges = [
+      { min: 0, max: 10, arr: rangedattackTier1 },
+      { min: 10, max: 20, arr: rangedattackTier2 },
+      { min: 20, max: 30, arr: rangedattackTier3 },
+      { min: 30, max: 40, arr: rangedattackTier4 },
+      { min: 40, max: 50, arr: rangedattackTier5 },
+      { min: 50, max: 60, arr: rangedattackTier6 },
+      { min: 60, max: 70, arr: rangedattackTier7 },
+      { min: 70, max: 80, arr: rangedattackTier8 },
+      { min: 80, max: 90, arr: rangedattackTier9 },
+      { min: 90, max: Infinity, arr: rangedattackTier10 }
+    ];
+    spdRanges = [
+      { min: 0, max: 10, arr: ratkSpdTier1 },
+      { min: 10, max: 20, arr: ratkSpdTier2 },
+      { min: 20, max: 30, arr: ratkSpdTier3 },
+      { min: 30, max: 40, arr: ratkSpdTier4 },
+      { min: 40, max: 50, arr: ratkSpdTier5 },
+      { min: 50, max: 60, arr: ratkSpdTier6 },
+      { min: 60, max: 70, arr: ratkSpdTier7 },
+      { min: 70, max: 80, arr: ratkSpdTier8 },
+      { min: 80, max: 90, arr: ratkSpdTier9 },
+      { min: 90, max: Infinity, arr: ratkSpdTier10 }
+    ];
+    // Ammo cost logic
+     let ammoCost = weaponStats.burstFireMode ? -3 : -1;
+    if (weaponStats.overchargeMode) ammoCost = -weaponStats.ammo;
 
-  //If player is not dialoguing, check input for ranged atk words and split the input
-  if(dialogueCheck == true){
-    rangedattackTextInput = []
-    rangedattackTextInput = findTargetsThenSplit(text,rangedattackWords,rangedattackTextInput,true);
-    console.log("rangedattackTextInput simplified: " + rangedattackTextInput);
+    // Overcharge mode: cannot fire if ammo is below 50%
+    if (
+  weaponStats.overchargeMode &&
+  (weaponStats.ammo < Math.ceil(weaponStats.maxAmmo * 0.5))
+) {
+  return text + ` You need at least 50% ammunition to overcharge your weapon!`;
+}
 
-    // Toggle burst fire mode if keyword present
-    if (text.toLowerCase().includes("burst fire")) {
-      state.lasrifleStats.burstFireMode = !state.lasrifleStats.burstFireMode;
-      // Optionally log or append text
-      log("Burst Fire Mode toggled: " + state.lasrifleStats.burstFireMode);
-    }
+    resourceCost = ammoCost;
+    resourceCheck = weaponStats.ammo >= Math.abs(ammoCost) && weaponStats.ammo > 0;
+    if (!resourceCheck) return text + ` *Click* your weapon is out of ammunition.`;
+}
 
-    //If input has  ranged atk words get their indices
-    if(rangedattackTextInput != null){
-      allRangedattackWordIndices = [];
-      allRangedattackWordIndices = indicesOfTargets(rangedattackTextInput,rangedattackWords);
-      log("allRangedattackWordIndices:" + allRangedattackWordIndices);
-
-      //Detect if there is  you + ranged atk or and + ranged atk
-      if(allRangedattackWordIndices != null){
-        startRangedattack = checkYouBeforeIndicesArr(rangedattackTextInput,allRangedattackWordIndices,3) || checkAndBeforeIndicesArr(rangedattackTextInput,allRangedattackWordIndices,2);
-        log("startRangedattack: "+ startRangedattack)
-      }
+  // Speed message
+  for (let range of spdRanges) {
+    if (spd >= range.min && spd < range.max) {
+      text += ` ${range.arr[randomInt(0, range.arr.length - 1)]}`;
+      statUp("spd", randomFloat(0.01, 1));
+      break;
     }
   }
 
-  if(startRangedattack){
-    // Get the player's ranged attack and speed stats
-    plrRatk = state.playerStats.ratk;
-    plrSpd = state.playerStats.spd;
-
-    // Define ranged attack strength ranges with corresponding attack messages
-    const ratkRanges = [
-      { min: 0, max: 10, ratk: rangedattackTier1 },
-      { min: 10, max: 20, ratk: rangedattackTier2 },
-      { min: 20, max: 30, ratk: rangedattackTier3 },
-      { min: 30, max: 40, ratk: rangedattackTier4 },
-      { min: 40, max: 50, ratk: rangedattackTier5 },
-      { min: 50, max: 60, ratk: rangedattackTier6 },
-      { min: 60, max: 70, ratk: rangedattackTier7 },
-      { min: 70, max: 80, ratk: rangedattackTier8 },
-      { min: 80, max: 90, ratk: rangedattackTier9 },
-      { min: 90, max: Infinity, ratk: rangedattackTier10 }
-    ];
-
-
-    // Define speed stat ranges with corresponding speed messages
-    const spdRanges = [
-      { min: 0, max: 10, spd: ratkSpdTier1 },
-      { min: 10, max: 20, spd: ratkSpdTier2 },
-      { min: 20, max: 30, spd: ratkSpdTier3 },
-      { min: 30, max: 40, spd: ratkSpdTier4 },
-      { min: 40, max: 50, spd: ratkSpdTier5 },
-      { min: 50, max: 60, spd: ratkSpdTier6 },
-      { min: 60, max: 70, spd: ratkSpdTier7 },
-      { min: 70, max: 80, spd: ratkSpdTier8 },
-      { min: 80, max: 90, spd: ratkSpdTier9 },
-      { min: 90, max: Infinity, spd: ratkSpdTier10 }
-    ];
-
-
-    // Calculate ammo requirements for ranged attack
-    let ratkAmmoCost = state.lasrifleStats.burstFireMode ? -3 : -1;
-    log("Ratk ammo cost: " + ratkAmmoCost);
-
-    // Ranged attack energy check defaults to false
-    ratkAmmoCheck = false;
-    // If player has enough energy, turn on check
-    if (state.lasrifleStats.ammo >= Math.abs(ratkAmmoCost) && state.lasrifleStats.ammo >= 0) {
-      ratkAmmoCheck = true;
+  // Attack/ranged message
+  for (let range of statRanges) {
+    if (stat >= range.min && stat < range.max) {
+      text += ` and ${range.arr[randomInt(0, range.arr.length - 1)].toLowerCase()}`;
+      statUp(actionType === 'attack' ? "atk" : "ratk", randomFloat(0.01, 1));
+      break;
     }
-    log("ratkAmmoCheck: " + ratkAmmoCheck);
+  }
 
-    // If player does not have enough energy to attack
-    if(!ratkAmmoCheck){
-      text = text + ` *Click* your weapon is out of ammunition.`
-      //todo: expand text
-    }
+  // Resource cost
+   if (actionType === 'attack') {
+    statUp("ep", resourceCost);
+  } else {
+    weaponStats.ammo += resourceCost;
+    if (weaponStats.ammo < 0) weaponStats.ammo = 0;
+    updateWeaponModes(weaponName, weaponStats);
+    storeWeaponToSC(weaponName, weaponStats); // Pass the updated stats!
+    log("Ammo after deduction: " + weaponStats.ammo);
+  }
 
-    // If player has enough energy to attack, execute the ranged attack
-    if (ratkAmmoCheck) {
-      // Check the player's speed range and create a message based on their speed
-      for (let range of spdRanges) {
-        if (plrSpd >= range.min && plrSpd < range.max) {
-          // Append the speed message to the attack text
-          text = text + ` ${range.spd[randomInt(0, range.spd.length - 1)]}`;
+  // Luck roll
+  let luckRoll = randomInt(1, 100);
+  if (luckRoll <= state.playerStats.lck && luckRoll >= 1) {
+    text += ` ${graspPhrases[randomInt(0, graspPhrases.length - 1)]} ${luckyPhrases[randomInt(0, luckyPhrases.length - 1)]}.`;
+    statUp("lck", randomFloat(0.01, 1));
+  }
 
-          // Attacking grants SPD exp
-          statUp("spd", randomFloat(0.01, 1));
-          break;
-        }
-      }
-
-      // Check the player's ranged attack range/strength, check energy requirement, and save ranged attack text
-      for (let range of ratkRanges) {
-        if (plrRatk >= range.min && plrRatk < range.max) {
-          // Save the attack message based on the attack strength
-          text = text + ` and ${range.ratk[randomInt(0, range.ratk.length - 1)].toLowerCase()}`;
-
-          // Attacking grants RATK exp
-          statUp("ratk", randomFloat(0.01, 1));
-
-          break;
-        }
-      }
-
-      // Apply ammunition cost from ranged attack
-      statUp("ammo", ratkAmmoCost);
-
-      // Determine if the ranged attack has a luck modifier
-      ratkLuckRoll = randomInt(1, 100); // Generate a random luck roll between 1 and 100
-      log("ratkLuckRoll: " + ratkLuckRoll); // Log the luck roll for debugging
-
-      if (ratkLuckRoll <= state.playerStats.lck && ratkLuckRoll >= 1) {
-        // If the luck roll is within the player's luck range, append a lucky phrase to the text
-        text = text + ` ${graspPhrases[randomInt(0, graspPhrases.length - 1)]} ${luckyPhrases[randomInt(0, luckyPhrases.length - 1)]}.`;
-
-        //Grant the player luck exp for using luck
-        statUp("lck", randomFloat(0.01, 1));
-      }
-
-      storeLasrifleToSC();
-      storeStatsToSC();
-    } // End of has ratk ammo
-  } // End of startRangedattack
-
+  storeStatsToSC();
   return text;
 }
 
