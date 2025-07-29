@@ -54,6 +54,9 @@ function onInput_TSS(text) {
 
     //Detect weapon equip/holster first
     text = detectWeaponEquip(text);
+
+     //Detect fire mode toggles (standalone)
+    text = detectFireModeToggle(text);
     
     //Create story cards if none
     createIfNoStatSC();
@@ -96,6 +99,8 @@ function onInput_TSS(text) {
     text = talentLearningProcess(text);
 
     text = warnPlayerHealth(text);
+
+    text = detectReload(text);
 
  
    }//end of main()
@@ -1710,6 +1715,7 @@ function helpCommandInput_TSS(text){
     - Unequip a weapon by returning it to your holster as in "I return my laspistol to it's holster"
     - You may toggle fire modes on appropriate weapons by saying "I select" or "I toggle burst fire" or "overcharge". Burst fire fires three rounds, overcharge consumes all remaining ammunition
     - You may fire multiple times in one action by saying "I fire twice" or "I fire three times etc"
+    - Laser weapons reload with power cells. 1 power cell = full weapon charge
     >>
     `
   }
@@ -3354,21 +3360,21 @@ function createIfNoWeaponSC() {
   if (!storyCards.some(sc => sc.type === "Weapons" || sc.category === "Weapons")) {
     // Laspistol
     addStoryCard("Laspistol", "A simple starter weapon.", "Weapons");
-    const laspistolSC = storyCards.find(sc => sc.title === "Laspistol");
-    laspistolSC.description = "Format for Modifying: Stat: num/maxNum";
-    laspistolSC.entry = "COND: 100/100\nAMMO: 50/50\nDMG TYPE: Laser\n";
+const laspistolSC = storyCards.find(sc => sc.title === "Laspistol");
+laspistolSC.description = "Format for Modifying: Stat: num/maxNum";
+laspistolSC.entry = "COND: 100/100\nAMMO: 50/50\nDMG TYPE: Laser\nAMMO ITEM: power cell\n";
 
-    // Lasrifle 
-    addStoryCard("Lasrifle", "A standard-issue rifle with burst fire capability.", "Weapons");
-    const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
-    lasrifleSC.description = "Format for Modifying: Stat: num/maxNum";
-    lasrifleSC.entry = "COND: 100/100\nAMMO: 50/50\nBurst Fire Mode: OFF\nDMG TYPE: Laser\n";
+// Lasrifle 
+addStoryCard("Lasrifle", "A standard-issue rifle with burst fire capability.", "Weapons");
+const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
+lasrifleSC.description = "Format for Modifying: Stat: num/maxNum";
+lasrifleSC.entry = "COND: 100/100\nAMMO: 50/50\nBurst Fire Mode: OFF\nDMG TYPE: Laser\nAMMO ITEM: power cell\n";
 
-    // RS-43 Longstrike
-    addStoryCard("RS-43 Longstrike", "A powerful rifle with overcharge capability.", "Weapons");
-    const longstrikeSC = storyCards.find(sc => sc.title === "RS-43 Longstrike");
-    longstrikeSC.description = "Format for Modifying: Stat: num/maxNum";
-    longstrikeSC.entry = "COND: 100/100\nAMMO: 20/20\nOvercharge Mode: OFF\nDMG TYPE: Laser\n";
+// RS-43 Longstrike
+addStoryCard("RS-43 Longstrike", "A powerful rifle with overcharge capability.", "Weapons");
+const longstrikeSC = storyCards.find(sc => sc.title === "RS-43 Longstrike");
+longstrikeSC.description = "Format for Modifying: Stat: num/maxNum";
+longstrikeSC.entry = "COND: 100/100\nAMMO: 20/20\nOvercharge Mode: OFF\nDMG TYPE: Laser\nAMMO ITEM: power cell\n";
   }
 }
 
@@ -3379,18 +3385,27 @@ function storeWeaponToSC(weaponName, weaponStatsOverride) {
   const weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
   if (!weaponSC) return;
   let stats = weaponStatsOverride || retrieveWeaponStatsFromEntry(weaponSC.entry);
+
+  // Preserve custom lines (like AMMO ITEM) from the original entry
+  let preservedLines = [];
+  weaponSC.entry.split('\n').forEach(line => {
+    if (/^AMMO ITEM:/i.test(line)) preservedLines.push(line.trim());
+    // Add more custom lines here if needed
+  });
+
   let formatForSC = [];
   formatForSC.push(`COND: ${stats.cond}/${stats.maxCond}\n`);
   formatForSC.push(`AMMO: ${stats.ammo}/${stats.maxAmmo}\n`);
-  // Only include these lines if they already exist in the entry
   if (/^Burst Fire Mode:/m.test(weaponSC.entry)) {
     formatForSC.push(`Burst Fire Mode: ${stats.burstFireMode ? "ON" : "OFF"}\n`);
   }
   if (/^Overcharge Mode:/m.test(weaponSC.entry)) {
     formatForSC.push(`Overcharge Mode: ${stats.overchargeMode ? "ON" : "OFF"}\n`);
   }
-  // Always include DMG TYPE
   formatForSC.push(`DMG TYPE: ${stats.dmgType || "Laser"}\n`);
+  // Add preserved custom lines (e.g., AMMO ITEM)
+  preservedLines.forEach(line => formatForSC.push(line + "\n"));
+
   weaponSC.entry = formatForSC.join("").replace(/,/g, '');
   if (weaponSC.description.length > 3000) {
     let halfIndex = Math.floor(weaponSC.description.length / 2);
@@ -3422,9 +3437,13 @@ function retrieveWeaponStatsFromEntry(entry) {
     if (match) {
       stats.overchargeMode = match[1].toUpperCase() === "ON";
     }
-    match = line.match(/^DMG TYPE:\s*(.+)$/i);
+   match = line.match(/^DMG TYPE:\s*(.+)$/i);
     if (match) {
       stats.dmgType = match[1].trim();
+    }
+    match = line.match(/^AMMO ITEM:\s*(.+)$/i);
+    if (match) {
+      stats.ammoItem = match[1].trim();
     }
   });
   return stats;
@@ -3443,10 +3462,15 @@ function retrieveWeaponFromSC(weaponName) {
 function updateWeaponModes(weaponName, weaponStats) {
   let weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
   if (weaponSC) {
+    // Preserve custom lines (like AMMO ITEM)
+    let preservedLines = [];
+    weaponSC.entry.split('\n').forEach(line => {
+      if (/^AMMO ITEM:/i.test(line)) preservedLines.push(line.trim());
+    });
+
     let formatForSC = [];
     formatForSC.push(`COND: ${weaponStats.cond}/${weaponStats.maxCond}\n`);
     formatForSC.push(`AMMO: ${weaponStats.ammo}/${weaponStats.maxAmmo}\n`);
-    // Only include these lines if they already exist in the entry
     if (/^Burst Fire Mode:/m.test(weaponSC.entry)) {
       formatForSC.push(`Burst Fire Mode: ${weaponStats.burstFireMode ? "ON" : "OFF"}\n`);
     }
@@ -3454,8 +3478,52 @@ function updateWeaponModes(weaponName, weaponStats) {
       formatForSC.push(`Overcharge Mode: ${weaponStats.overchargeMode ? "ON" : "OFF"}\n`);
     }
     formatForSC.push(`DMG TYPE: ${weaponStats.dmgType || "Laser"}\n`);
+    preservedLines.forEach(line => formatForSC.push(line + "\n"));
+
     weaponSC.entry = formatForSC.join("").replace(/,/g, '');
   }
+}
+
+function detectFireModeToggle(text) {
+  // Only check if a weapon is equipped
+  let weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+  if (!weaponName) return text;
+
+  let weaponStats = retrieveWeaponFromSC(weaponName) || {};
+
+  let changed = false;
+
+  // Normalize input
+  let t = text.toLowerCase();
+
+  // Accept more verbs and patterns for toggling burst fire
+  if (
+    /(toggle|select|switch|flip|set|change|turn|enable|disable).{0,15}(burst\s*fire|burst)/i.test(t) ||
+    /(burst\s*fire|burst).{0,15}(mode|on|off|enabled|disabled)/i.test(t) ||
+    /(to|into)\s+burst\s*fire/i.test(t)
+  ) {
+    weaponStats.burstFireMode = !weaponStats.burstFireMode;
+    updateWeaponModes(weaponName, weaponStats);
+    storeWeaponToSC(weaponName, weaponStats);
+    state.msgHolder += `Burst Fire Mode is now ${weaponStats.burstFireMode ? "ON" : "OFF"} for your ${weaponName}.\n`;
+    changed = true;
+  }
+
+  // Accept more verbs and patterns for toggling overcharge
+  if (
+    /(toggle|select|switch|flip|set|change|turn|enable|disable).{0,15}(overcharge)/i.test(t) ||
+    /(overcharge).{0,15}(mode|on|off|enabled|disabled)/i.test(t) ||
+    /(to|into)\s+overcharge/i.test(t)
+  ) {
+    weaponStats.overchargeMode = !weaponStats.overchargeMode;
+    updateWeaponModes(weaponName, weaponStats);
+    storeWeaponToSC(weaponName, weaponStats);
+    state.msgHolder += `Overcharge Mode is now ${weaponStats.overchargeMode ? "ON" : "OFF"} for your ${weaponName}.\n`;
+    changed = true;
+  }
+
+  if (changed) return text + " [Fire mode toggled]";
+  return text;
 }
 
 function detectAttack(text) {
@@ -3625,6 +3693,62 @@ function detectStoreInv(text) {
     storeInvToSC();
     return text + "🎒";
 }
+
+///////Reload Weapon function
+
+// Add this function anywhere after your utility functions
+
+function detectReload(text) {
+  // Normalize input
+  let t = text.toLowerCase();
+
+  // Accept common reload commands
+  if (!/(reload|change\s+mag|swap\s+magazine|insert\s+ammo|load\s+ammo)/i.test(t)) return text;
+
+  // Get equipped weapon
+  let weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+  if (!weaponName) {
+    state.msgHolder += "You have no weapon equipped to reload.\n";
+    return text + " You have no weapon equipped to reload.";
+  }
+
+  // Get weapon stats and SC
+  let weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
+  if (!weaponSC) return text;
+  let weaponStats = retrieveWeaponStatsFromEntry(weaponSC.entry);
+
+  // Determine ammo item name (e.g., "lasrifle cell" for "lasrifle")
+  let ammoItem = weaponStats.ammoItem || (weaponName.toLowerCase() + " cell");
+
+  // Check inventory for ammo
+  let invIndex = state.playerInv.item.findIndex(i => i.toLowerCase() === ammoItem);
+  if (invIndex === -1 || state.playerInv.amt[invIndex] < 1) {
+    state.msgHolder += `You have no ${ammoItem}s in your inventory to reload.\n`;
+    return text + ` You have no ${ammoItem}s to reload.`;
+  }
+
+  // Only reload if not already full
+  if (weaponStats.ammo >= weaponStats.maxAmmo) {
+    state.msgHolder += `Your ${weaponName} is already fully loaded.\n`;
+    return text + ` Your ${weaponName} is already fully loaded.`;
+  }
+
+  // Set ammo to max and remove one ammo item from inventory
+  weaponStats.ammo = weaponStats.maxAmmo;
+  state.playerInv.amt[invIndex] -= 1;
+  if (state.playerInv.amt[invIndex] <= 0) {
+    state.playerInv.item.splice(invIndex, 1);
+    state.playerInv.amt.splice(invIndex, 1);
+  }
+  storeWeaponToSC(weaponName, weaponStats);
+  storeInvToSC();
+
+  state.msgHolder += `You reload your ${weaponName} using a ${ammoItem}.\n`;
+  return text + ` You reload your ${weaponName}.`;
+}
+
+
+
 ///Player skills will be stored in an sc. CREATE initial sc. Skills will STORE TO or RETREIVE FROM sc.
 
 // Initialize player skills (ensure always defined for stateless AI Dungeon)
