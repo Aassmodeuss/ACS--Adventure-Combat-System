@@ -91,6 +91,7 @@ function onInput_TSS(text) {
     retrieveWeaponFromSC();
     retrieveWeaponmodsFromSC();
     retrieveEquippedWeaponFromSC();
+    
 
     text = detectPassiveSkillTrigger(text);
 
@@ -208,9 +209,9 @@ function onOutput_TSS(text) {
     storeWeaponmodsToSC();
 
    // Retrieve equipped weapon from the "Equipped Gear" category
-   retrieveEquippedWeaponFromSC()
-   // Retrieve equipped weapon from the "Equipped Gear" category
-   retrieveEquippedWeaponFromSC()
+   //retrieveEquippedWeaponFromSC()
+   //Final equipped weapon stores back to SC in correct formatting
+   //storeEquippedWeaponToSC()
 
     state.message = state.msgHolder;
     state.msgHolder = "";
@@ -311,8 +312,8 @@ stopWords = [
   "know", "knows", "knew", "stopping", "stops", "becomes",
 
   // Game-Specific Terms
-  "skill", "talent", "ability", "executes", "existing",
-  "increases corruption ", "consumes energy", "successfully",
+  "skill", "ability", "executes", "existing",
+  "increases corruption", "consumes energy", "successfully",
   "suddenly", "predictably", "efficiently", "cast"
 ];
 
@@ -1082,213 +1083,233 @@ const atkSpdTier10 = [
 ];
 
 const ratkSpdTier1 = [
-  "You slowly get your weapon on target.",
-  ];
+  "Your aim is slow to settle",
+  "You take a long moment to line up your shot",
+  "Your targeting is sluggish and hesitant",
+  "You fumble with your sights, losing precious time",
+  "You’re slow to focus on your mark",
+  "You struggle to steady your aim",
+  "You’re late to react, your targeting delayed",
+  "You hesitate before committing to the shot",
+  "You’re distracted, your aim wandering",
+  "You’re slow to track your target",
+  "You’re caught off guard, your aim lagging",
+  "You’re sluggish to adjust your sights",
+  "You’re slow to find your mark",
+  "You’re unsteady, your aim wavering",
+  "You’re slow to bring your sights to bear",
+  "You’re late to align your shot",
+  "You’re slow to respond to movement",
+  "You’re hesitant to take the shot",
+  "You’re slow to react to the opportunity",
+  "You’re delayed in lining up your attack"
+];
 
 const ratkSpdTier2 = [
-  "You're slow on the draw.",
- ];
+  "You take your time to aim",
+  "You’re careful, but not quick to target",
+  "You move at a measured pace to line up your shot",
+  "You’re deliberate in your targeting",
+  "You’re steady, but your aim is not fast",
+  "You’re cautious as you prepare to fire",
+  "You’re methodical in adjusting your sights",
+  "You’re not rushed as you focus on your target",
+  "You’re slow to settle on your mark",
+  "You’re careful to track your target",
+  "You’re not hurried as you line up the shot",
+  "You’re measured in your approach to aiming",
+  "You’re slow to commit to the attack",
+  "You’re deliberate in your targeting process",
+  "You’re steady, but your shot is not immediate",
+  "You’re careful to ensure your aim is true",
+  "You’re not quick to react to movement",
+  "You’re slow to adjust to changes in the target",
+  "You’re cautious in your attack preparation",
+  "You’re deliberate in lining up your shot"
+];
 
 const ratkSpdTier3 = [
-  "Your hesitate while you pick your target.",
+  "You hesitate before firing",
+  "You’re indecisive as you aim",
+  "You pause to consider your shot",
+  "You’re thoughtful, but not quick to attack",
+  "You’re distracted by options as you aim",
+  "You’re caught between targets",
+  "You’re slow to settle on a firing solution",
+  "You’re uncertain, your aim delayed",
+  "You’re not focused, your targeting suffers",
+  "You’re second-guessing your shot",
+  "You’re slow to decide when to fire",
+  "You’re pondering as you line up the attack",
+  "You’re caught in analysis, losing time to aim",
+  "You’re slow to commit to the shot",
+  "You’re unsure, your aim delayed",
+  "You’re distracted, your targeting is off",
+  "You’re caught in thought, your shot delayed",
+  "You’re slow to act on your targeting instincts",
+  "You’re hesitant, the moment to fire slipping by",
+  "You’re not quick to seize the shot"
 ];
 
 const ratkSpdTier4 = [
-  "You steady your aim and verify your shot.",
+  "You aim with steady focus",
+  "You move with careful intent to target",
+  "You’re attentive, but not rushed to fire",
+  "You’re precise, but not hurried in your aim",
+  "You’re methodical, keeping a measured pace as you target",
+  "You’re deliberate, your aim controlled",
+  "You’re composed, focusing on your shot",
+  "You’re focused, but not especially quick to fire",
+  "You’re calm, your aim reliable",
+  "You’re steady, your targeting well-paced",
+  "You’re careful to maintain control as you aim",
+  "You’re not rushed, but you’re not slow either to fire",
+  "You’re intent on accuracy over speed",
+  "You’re measured, your aim smooth",
+  "You’re focused on the target at hand",
+  "You’re composed, your shot well-timed",
+  "You’re attentive, your aim deliberate",
+  "You’re steady, your targeting consistent",
+  "You’re careful, your pace unhurried as you fire",
+  "You’re calm, your shot well-timed"
 ];
 
 const ratkSpdTier5 = [
-  "You take your time and make your shot.",
+  "You attack with practiced confidence",
+  "You move with reliable speed to target",
+  "You’re focused, your timing solid for the shot",
+  "You’re calm under pressure as you aim",
+  "You’re sure of yourself, your targeting smooth",
+  "You’re ready, your response timely",
+  "You’re in control, your aim efficient",
+  "You’re prepared, your timing on point",
+  "You’re steady, your targeting well-practiced",
+  "You’re confident, your response measured",
+  "You’re composed, your aim fluid",
+  "You’re ready for action, your timing good",
+  "You’re focused, your targeting effective",
+  "You’re sure-handed, your aim reliable",
+  "You’re prepared, your shot well-timed",
+  "You’re in control, your targeting consistent",
+  "You’re calm, your aim efficient",
+  "You’re ready, your response practiced",
+  "You’re confident, your shot timely",
+  "You’re steady, your targeting reliable"
 ];
 
 const ratkSpdTier6 = [
-  "You draw quickly and acquire your target.",
+  "You react quickly to the target",
+  "You move with impressive speed to aim",
+  "You’re fast to respond to the opportunity",
+  "You’re sharp, your targeting excellent",
+  "You’re alert, your aim swift",
+  "You’re ready in an instant to fire",
+  "You’re practiced, your response quick",
+  "You’re fast, your targeting efficient",
+  "You’re quick to adapt your aim",
+  "You’re efficient, your targeting sharp",
+  "You’re rapid, your aim smooth",
+  "You’re quick-witted, your response immediate",
+  "You’re alert and ready, your aim fast",
+  "You’re swift, your targeting impressive",
+  "You’re fast-thinking, your response sharp",
+  "You’re quick to act, your aim excellent",
+  "You’re sharp and focused, your targeting quick",
+  "You’re ready in a heartbeat to attack",
+  "You’re practiced and quick, your aim efficient",
+  "You’re fast on your feet, your targeting excellent"
 ];
 
 const ratkSpdTier7 = [
-  "You quickly fire on your target.",
+  "You attack with remarkable speed",
+  "You’re lightning-fast to target",
+  "You’re a blur of motion as you aim",
+  "You’re swift and sure in your targeting",
+  "You’re rapid, your aim almost too fast to follow",
+  "You’re quick as a whip, your targeting precise",
+  "You’re fast and focused, your aim practiced",
+  "You’re a step ahead, your targeting sharp",
+  "You’re sharp and quick, your response immediate",
+  "You’re ready in a split second to fire",
+  "You’re a model of efficiency, your aim fast",
+  "You’re quick to react, your targeting flawless",
+  "You’re fast and fluid, your aim smooth",
+  "You’re a flash of action, your targeting immediate",
+  "You’re swift and practiced, your aim excellent",
+  "You’re quick on the uptake, your targeting sharp",
+  "You’re a blur, your response almost invisible",
+  "You’re lightning-quick, your targeting impressive",
+  "You’re fast and sure, your aim confident",
+  "You’re a master of speed, your targeting instant"
 ];
 
 const ratkSpdTier8 = [
-  "You quick draw your weapon in a blur and fire.",
+  "You respond in a blur of targeting motion",
+  "You’re a whirlwind of speed as you aim",
+  "You’re impossibly fast to line up your shot",
+  "You’re a master of quick targeting",
+  "You’re a blur of action, your aim perfect",
+  "You’re lightning in human form, your targeting precise",
+  "You’re a paragon of quickness, your aim flawless",
+  "You’re a flash of movement, your targeting instant",
+  "You’re a model of efficiency, your aim immediate",
+  "You’re a step ahead, your targeting perfect",
+  "You’re a whirlwind, your aim almost too fast to see",
+  "You’re a master of the quick response, your targeting instant",
+  "You’re a blur of skill, your aim practiced",
+  "You’re a flash of readiness, your targeting immediate",
+  "You’re a paragon of speed, your aim confident",
+  "You’re a master of timing, your targeting perfect",
+  "You’re a blur of readiness, your aim flawless",
+  "You’re a flash of action, your targeting precise",
+  "You’re a master of the quick, your aim instant",
+  "You’re a whirlwind of skill, your targeting incredibly fast"
 ];
 
 const ratkSpdTier9 = [
-  "You draw with the speed and precision of a true marksman."
+  "You target with the speed and precision of a true marksman",
+  "You’re a legend in motion, your aim flawless",
+  "You’re a master of quick targeting, your aim perfect",
+  "You’re a paragon of precision, your targeting instant",
+  "You’re a blur of expertise, your aim practiced",
+  "You’re a model of readiness, your targeting instant",
+  "You’re a flash of mastery, your aim perfect",
+  "You’re a paragon of skill, your targeting flawless",
+  "You’re a master of timing, your aim instant",
+  "You’re a legend of speed, your targeting immediate",
+  "You’re a blur of action, your aim perfect",
+  "You’re a paragon of quickness, your targeting instant",
+  "You’re a master of the quick, your aim perfect",
+  "You’re a whirlwind of expertise, your targeting flawless",
+  "You’re a flash of skill, your aim practiced",
+  "You’re a paragon of readiness, your targeting perfect",
+  "You’re a master of speed, your aim confident",
+  "You’re a legend of the quick, your targeting instant",
+  "You’re a blur of mastery, your aim flawless",
+  "You’re a paragon of action, your targeting perfect"
 ];
 
 const ratkSpdTier10 = [
-  "You draw and fire before your target can react."
-];
-
-const spdTier1 = [
-  "You moved with hesitation.",
-  "Your pace was unhurried.",
-  "You reacted a bit late.",
-  "Your steps were cautious.",
-  "You lagged slightly behind.",
-  "Your movement was mild.",
-  "You shuffled along.",
-  "You stayed near the edge of action.",
-  "You moved, but not urgently.",
-  "You followed the pace of others.",
-  "You almost missed the moment.",
-  "You caught yourself just in time.",
-  "You moved late—but not too late.",
-  "You stumbled, but kept going."
-];
-
-const spdTier2 = [
-  "You responded at a decent pace.",
-  "You kept steady footing.",
-  "You moved in time with the flow.",
-  "Your reaction was acceptable.",
-  "You stayed alert but not rushed.",
-  "You acted without delay.",
-  "Your motion was timely.",
-  "You took a firm step forward.",
-  "You held your ground and advanced.",
-  "You moved as needed.",
-  "You wavered, but followed through.",
-  "You hesitated, then acted fast enough.",
-  "You nearly lagged but recovered.",
-  "You were a beat behind, but stayed effective."
-];
-
-const spdTier3 = [
-  "You stepped in smoothly.",
-  "You navigated with focus.",
-  "Your pace matched the moment.",
-  "You moved with intention.",
-  "You move with calm control.",
-  "You adjusted fluidly.",
-  "You kept up with ease.",
-  "You slipped past at the right moment.",
-  "You moved when it mattered.",
-  "You engaged without delay.",
-  "You flinched first, then found flow.",
-  "You nearly lost the beat, but recovered.",
-  "You hesitated mid-step but regained your rhythm.",
-  "You reacted just shy of perfect timing."
-];
-
-const spdTier4 = [
-  "You shifted before it hit.",
-  "You sidestepped without thinking.",
-  "You stepped into a better position.",
-  "Your reflex was sharp.",
-  "You moved with natural readiness.",
-  "You flowed around the threat.",
-  "You anticipated the motion.",
-  "You edged ahead.",
-  "You slipped out of reach.",
-  "You kept your momentum.",
-  "You nearly lost your footing but held course.",
-  "You stumbled into a better position.",
-  "Your motion faltered—barely—but held.",
-  "You made the move just in time."
-];
-
-const spdTier5 = [
-  "You intercepted with swift control.",
-  "You adjusted in mid-move.",
-  "You reacted just in time.",
-  "You slipped through a narrow gap.",
-  "Your motion was barely seen.",
-  "You read the moment instantly.",
-  "You darted into advantage.",
-  "You accelerated through the gap.",
-  "You breezed past the pressure.",
-  "You moved ahead of time.",
-  "You clipped the edge but made it through.",
-  "You misread slightly, but recovered fast.",
-  "You almost lost balance in motion.",
-  "You got through—but only just."
-];
-
-const spdTier6 = [
-  "You moved before the signal.",
-  "You faded out of reach.",
-  "Your steps blurred slightly.",
-  "You interrupted the moment.",
-  "You vanished between thoughts.",
-  "You moved in the in-between.",
-  "You bent around timing.",
-  "You surged through a blink.",
-  "You crossed the line unseen.",
-  "You glided without friction.",
-  "You flickered once, then regained form.",
-  "You lost track for a beat—then vanished.",
-  "You barely avoided being seen.",
-  "You left a tremor behind your slip."
-];
-
-const spdTier7 = [
-  "You broke formation with grace.",
-  "You accelerated without effort.",
-  "Your response came before need.",
-  "You slipped around consequence.",
-  "You were gone before it mattered.",
-  "You slid past their intent.",
-  "You darted without windup.",
-  "You opened space where there was none.",
-  "You broke timing subtly.",
-  "You disappeared and returned.",
-  "You felt resistance—but outpaced it.",
-  "You nearly got caught in flow.",
-  "You reappeared a breath too soon.",
-  "You paused for a flicker—then moved again."
-];
-
-const spdTier8 = [
-  "You arrived where no path existed.",
-  "Your pace disrupted expectation.",
-  "You moved in silence between moments.",
-  "You broke through reaction time.",
-  "You created a gap with motion alone.",
-  "You turned presence into motion.",
-  "You operated ahead of awareness.",
-  "You passed through anticipation.",
-  "You lapped the moment itself.",
-  "You escaped momentum's reach.",
-  "You faltered slightly before vanishing.",
-  "Your blur returned with a wobble.",
-  "You nearly collided with time—but twisted free.",
-  "A brief hesitation almost caught you."
-];
-
-const spdTier9 = [
-  "You moved through the margin of possibility.",
-  "You were felt but not seen.",
-  "You skipped the buildup and acted.",
-  "You merged instinct with motion.",
-  "You danced outside rhythm.",
-  "You ignored delay entirely.",
-  "You left reactions behind.",
-  "You passed thought by.",
-  "You slipped through stillness.",
-  "You left only a trace.",
-  "You shimmered oddly before stabilizing.",
-  "You nearly brushed against reaction.",
-  "You arrived a sliver too early.",
-  "You flickered—almost noticed."
-];
-
-const spdTier10 = [
-  "You existed only between actions.",
-  "You distorted the sense of time.",
-  "You were presence without motion.",
-  "You shaped space with pace.",
-  "You eluded reality’s steps.",
-  "You moved while the world paused.",
-  "You blurred into position.",
-  "You reacted before intention formed.",
-  "You bypassed delay like a breath.",
-  "You became the echo of speed.",
-  "Reality briefly rejected your step—then bent.",
-  "You trembled at the edge of being seen.",
-  "You flickered out—then fully vanished.",
-  "You slipped—but impossibly corrected mid-vanish."
+  "You react before anyone else can fire",
+  "You’re a living legend, your targeting supernatural",
+  "You’re a master of the impossible, your aim instant",
+  "You’re a force of nature, your targeting beyond compare",
+  "You’re a myth in motion, your aim otherworldly",
+  "You’re a paragon of perfection, your targeting flawless",
+  "You’re a master of the instant, your aim immediate",
+  "You’re a legend of the quick, your targeting impossible",
+  "You’re a blur of the unreal, your aim supernatural",
+  "You’re a flash of the impossible, your targeting instant",
+  "You’re a paragon of the quick, your aim mythic",
+  "You’re a master of the unthinkable, your targeting instant",
+  "You’re a legend of the impossible, your aim perfect",
+  "You’re a blur of the legendary, your targeting flawless",
+  "You’re a paragon of the instant, your aim perfect",
+  "You’re a master of the mythic, your targeting supernatural",
+  "You’re a legend of the unreal, your aim impossible",
+  "You’re a blur of the mythic, your targeting otherworldly",
+  "You’re a paragon of the impossible, your aim flawless",
+  "You’re a master of the legendary, your targeting perfect"
 ];
 
 
@@ -1641,25 +1662,7 @@ function helpCommandInput_TSS(text){
     - 🍀 Each point in LCK gives a 1% chance of a lucky boost.
     >>
     `
-  }
-  else if(text.includes("/help talents")){
-    state.commandCenter_TSS = 
-    `
-    <<
-    🎯 Talent System Guide
-
-    - 🧠 Talents represent your character's aptitudes (e.g., Cooking, Lockpicking, Fishing).
-    - ⚡ Talents consume energy points (EP) when used.
-    - ✨ Casting a talent transforms it into a skill, which uses corruption (CP) instead.
-    - 📝 Edit talents in the Story Card using the format: "Talent Name (Lvl) (Ep)".
-    - 📚 Learn a talent by studying it and using its name repeatedly over a few turns. Ex: You [study word] Fireball.
-    - 🔤 Capitalized first-letter talent names are learned faster.
-    - 🧪 The system filters common words intelligently when detecting talent names.
-    - 🎓 Learning talents grants INTL experience.
-    - 📖 Talent learning progress is logged in the Player Talents Story Card notes.
-    - 📈 Using talents levels them up. Progress is also tracked in the Story Card.
-    >>
-    `
+ 
   }
   else if(text.includes("/help skills")){
     state.commandCenter_TSS = 
@@ -1667,12 +1670,9 @@ function helpCommandInput_TSS(text){
     <<
     🎯 Skills System Guide
 
-    - 🪄 Skills require corruption points (CP) to use. Example: Fireball.
-    - 🔄 Casting a talent transforms it into a skill.
-    - 📝 Edit skills in the Story Card using the format: "Skill Name (Lvl) (CP)".
+    
+    - 📝 Edit skills in the Story Card using the format: "Skill Name (Lvl)".
     - 📈 Use skills to gain EXP — progress is logged in the Story Card.
-    - 🧪 Skills upgrade every 5 levels (up to level 25), changing their name and reducing CP cost by 5%.
-    - 💥 Skill power increases every 10 levels.
     >>
     `
   }
@@ -1699,14 +1699,14 @@ function helpCommandInput_TSS(text){
     <<
     🎬 Action System Help
 
-    - Item, talent, and skill usage requires name matching (exact or partial).
+    - Item, and skill usage requires name matching (exact or partial).
     - Vague actions are taken literally. Example: "You slice it" (slice with what?).
     - Cast skills: "You [cast verb] [skill name]."
     - Rest to recover HP, CP, and energy:
       • Light rest, moderate rest, full rest yield different recovery levels.
       • Format: "You [enter words] [sleep words]."
     - Use consumables for healing/energy. Example: "You drink a Mythical potion."
-    - Use skills/talents on yourself to heal. Format: "You [heal word] [yourself] [skill/talent]."
+    - Use skills on yourself to heal. Format: "You [heal word] [yourself] [skill]."
     - ATK & SPD:
       • +10 ATK & SPD → stronger attacks
       • +10 SPD → faster actions, better dodging
@@ -1746,7 +1746,6 @@ function helpCommandInput_TSS(text){
     - /start — Starts the script
     - /end — Stops the script
     - /help stats — Stat mechanics and usage
-    - /help talents — Talent mechanics and learning
     - /help skills — Skill casting and upgrades
     - /help inventory — Storing and managing items
     - /help actions — Combat, healing, resting, and usage behaviors
@@ -1852,10 +1851,11 @@ function injectEquippedWeaponInstruction(context) {
     return context;
   }
 
-  // Only inject if not already present
-  if (!context.includes("ALWAYS reference the equipped weapon's story card")) {
-    const instruction = `<SYSTEM> ALWAYS reference the equipped weapon's story card ("${eqWeapon}") for ammunition, condition, and weapon stats. Do NOT invent or estimate these values. Use the exact numbers from the story card entry:\n${weaponSC.entry}. Avoid making assumptions about the weapon's state or capabilities. Condition and ammunition counters are for reference only. Avoid mentioning weapon condition stat or remaining ammunition in the story.\n</SYSTEM>\n`;
+  // Use a more generic check that will match regardless of weapon name
+  if (!context.includes("#ALWAYS reference the equipped weapon's story card")) {
+    const instruction = `<SYSTEM> #ALWAYS reference the equipped weapon's story card ("${eqWeapon}") for ammunition, condition, and weapon stats. Do NOT invent or estimate these values. Use the exact numbers from the story card entry:\n${weaponSC.entry}. Avoid making assumptions about the weapon's state or capabilities. Condition and ammunition counters are for reference only. Avoid mentioning weapon condition stat or remaining ammunition in the story.#\n</SYSTEM>\n`;
     log(`Injecting equipped weapon instruction for: ${eqWeapon}`);
+    log("Injected SYSTEM instruction:\n" + instruction);
     return instruction + context;
   }
   log("Instruction already present in context.");
@@ -2278,7 +2278,11 @@ function detectWeaponEquip(text) {
     let equipCmd = /(equip|draw|ready|wield|hold|unsheath|arm)\s+([\w\s\-']+)/i;
     let unequipCmd = /(unequip|holster|put away|stow|sheath|disarm|return)\s+(?:my|your)?\s*([\w\s\-']+)?/i;
 
-    let equippedWeapon = retrieveEquippedWeaponFromSC() || null;
+    let equippedWeapon = retrieveEquippedWeaponFromSC();
+if (!equippedWeapon || typeof equippedWeapon !== "string" || equippedWeapon.trim() === "") {
+  // Handle the case where no weapon is equipped
+  equippedWeapon = null;
+}
 
     // Handle unequip
     if (unequipCmd.test(cleanText)) {
@@ -2426,7 +2430,11 @@ function storeModifiersToSC(){
   //log(formatForSC);
 
   // Fetch the "Player Modifiers" card
-  const modSC = storyCards.find(sc => sc.title === "Player Modifiers");
+   const modSC = storyCards.find(sc => sc.title === "Player Modifiers");
+  if (!modSC) {
+    log('Player Modifiers story card not found!');
+    return;
+  }
 
   //Convert holder to string, clean commas, and finally store to sc entry
   modSC.entry = String(formatForSC).replace(/,/g, '');
@@ -2443,8 +2451,11 @@ function storeModifiersToSC(){
 //RETRIEVE data from sc and store to playerModifiers
 function retrieveModifiersFromSC(){
   // Fetch the "Player Modifiers" card
-  const modSC = storyCards.find(sc => sc.title === "Player Modifiers");
-
+ const modSC = storyCards.find(sc => sc.title === "Player Modifiers");
+  if (!modSC) {
+    log('Player Modifiers story card not found!');
+    return;
+  }
   // Retrieve and split sc entry into (modName, value) lines
   const modEntries = modSC.entry.split("\n"); //arr of strings
 
@@ -2577,6 +2588,10 @@ function storeStatsToSC(){
 
   // Fetch the "Player Stats" card
   const statSC = storyCards.find(sc => sc.title === "Player Stats");
+  if (!statSC) {
+    log('Player Stats story card not found!');
+    return;
+  }
 
   // Convert holder to string, clean commas, and finally store to sc entry
   statSC.entry = String(formatForSC).replace(/,/g, '');
@@ -2608,6 +2623,10 @@ function retrieveStatsFromSC(){
   
   //Fetch SC
   const statSC = storyCards.find(sc => sc.title === "Player Stats");
+  if (!statSC) {
+    log('Player Stats story card not found!');
+    return;
+  }
 
   // Retrieve and split sc entry into array of stat lines
   const statEntries = statSC.entry.split("\n"); //arr of strings
@@ -3000,11 +3019,12 @@ function createIfNoWeaponSC() {
     const laspistolSC = storyCards.find(sc => sc.title === "Laspistol");
     laspistolSC.description = "Format for Modifying: Stat: num/maxNum";
     laspistolSC.entry =
+      "Laspistol\n" +
       "COND: 100/100\n" +
       "AMMO: 20/20\n" +
       "DMG TYPE: Laser Class 1\n" +
       "AMMO ITEM: micro cell\n" +
-      "Laspistol\n";
+      "Laspistol\n" +
       "The Laspistol is a compact sidearm favored for its reliability and ease of use. Effective at close range.\n";
 
     // Lasrifle 
@@ -3012,25 +3032,27 @@ function createIfNoWeaponSC() {
     const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
     lasrifleSC.description = "Format for Modifying: Stat: num/maxNum";
     lasrifleSC.entry =
+      "Lasrifle\n" +
       "COND: 100/100\n" +
       "AMMO: 50/50\n" +
-      "Burst Fire Mode: OFF\n" +
       "DMG TYPE: Laser Class 2\n" +
       "AMMO ITEM: power cell\n" +
-      "Lasrifle\n";
-      "The Lasriflee is a standard-issue rifle, reliable, rugged and versatile for most combat situations.\n";
+      "Burst Fire Mode: OFF\n" +
+      "Lasrifle\n" +
+      "The Lasrifle is a standard-issue rifle, reliable, rugged and versatile for most combat situations.\n";
 
     // RS-43 Longstrike
     addStoryCard("RS-43 Longstrike", "A powerful rifle with overcharge capability for increased damage.", "Weapons");
     const longstrikeSC = storyCards.find(sc => sc.title === "RS-43 Longstrike");
     longstrikeSC.description = "Format for Modifying: Stat: num/maxNum";
     longstrikeSC.entry =
+      "RS-43 Longstrike\n" +
       "COND: 100/100\n" +
       "AMMO: 20/20\n" +
-      "Overcharge Mode: OFF\n" +
       "DMG TYPE: Laser Class 3\n" +
       "AMMO ITEM: power cell\n" +
-      "RS-43 Longstrike\n";
+      "Overcharge Mode: OFF\n" +
+      "RS-43 Longstrike\n" +
       "The RS-43 Longstrike is a powerful long-range rifle with overcharge capability for greatly increased damage at the cost of full power cell consumption.\n";
   }
 }
@@ -3040,7 +3062,10 @@ function storeWeaponToSC(weaponName, weaponStatsOverride) {
   weaponName = weaponName || getCurrentWeaponName();
   if (!weaponName) return;
   const weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
-  if (!weaponSC) return;
+  if (!weaponSC) {
+    log(`Weapon story card not found for: ${weaponName}`);
+    return;
+  }
   let stats = weaponStatsOverride || retrieveWeaponStatsFromEntry(weaponSC.entry);
 
   // Split the original entry into lines
@@ -3049,12 +3074,13 @@ function storeWeaponToSC(weaponName, weaponStatsOverride) {
   let used = {
     cond: false,
     ammo: false,
+    dmg: false,
+    ammoItem: false,
     burst: false,
-    overcharge: false,
-    dmg: false
+    overcharge: false
   };
 
-  // Replace or update stat lines, preserve others
+  // Replace or update stat lines, preserve others (flavor text, etc.)
   for (let line of lines) {
     if (/^COND:/i.test(line)) {
       newLines.push(`COND: ${stats.cond}/${stats.maxCond}`);
@@ -3062,28 +3088,44 @@ function storeWeaponToSC(weaponName, weaponStatsOverride) {
     } else if (/^AMMO:/i.test(line)) {
       newLines.push(`AMMO: ${stats.ammo}/${stats.maxAmmo}`);
       used.ammo = true;
-    } else if (/^Burst Fire Mode:/i.test(line)) {
-      newLines.push(`Burst Fire Mode: ${stats.burstFireMode ? "ON" : "OFF"}`);
-      used.burst = true;
-    } else if (/^Overcharge Mode:/i.test(line)) {
-      newLines.push(`Overcharge Mode: ${stats.overchargeMode ? "ON" : "OFF"}`);
-      used.overcharge = true;
     } else if (/^DMG TYPE:/i.test(line)) {
       newLines.push(`DMG TYPE: ${stats.dmgType || "Laser"}`);
       used.dmg = true;
+    } else if (/^AMMO ITEM:/i.test(line)) {
+      newLines.push(`AMMO ITEM: ${stats.ammoItem || ""}`);
+      used.ammoItem = true;
+    } else if (/^Burst Fire Mode:/i.test(line)) {
+        newLines.push(`Burst Fire Mode: ${stats.burstFireMode ? "ON" : "OFF"}`);
+        used.burst = true;
+    } else if (/^Overcharge Mode:/i.test(line)) {
+      newLines.push(`Overcharge Mode: ${stats.overchargeMode ? "ON" : "OFF"}`);
+      used.overcharge = true;
     } else {
       newLines.push(line);
     }
   }
 
-  // If any stat lines were missing, add them at the top
-  if (!used.cond) newLines.unshift(`COND: ${stats.cond}/${stats.maxCond}`);
-  if (!used.ammo) newLines.unshift(`AMMO: ${stats.ammo}/${stats.maxAmmo}`);
-  if (!used.burst && typeof stats.burstFireMode !== "undefined")
-    newLines.unshift(`Burst Fire Mode: ${stats.burstFireMode ? "ON" : "OFF"}`);
-  if (!used.overcharge && typeof stats.overchargeMode !== "undefined")
-    newLines.unshift(`Overcharge Mode: ${stats.overchargeMode ? "ON" : "OFF"}`);
-  if (!used.dmg) newLines.unshift(`DMG TYPE: ${stats.dmgType || "Laser"}`);
+  // Only add missing stat lines if they were present in the original entry
+  // Insert in correct order: COND, AMMO, DMG TYPE, AMMO ITEM, [Burst/Overcharge], [other]
+  function insertAfter(label, value) {
+    let idx = newLines.findIndex(l => new RegExp(`^${label}:`, "i").test(l));
+    if (idx !== -1) {
+      newLines.splice(idx + 1, 0, value);
+    }
+  }
+  // Add missing lines in correct order if they existed in original
+  if (!used.cond && lines.some(l => /^COND:/i.test(l)))
+    newLines.unshift(`COND: ${stats.cond}/${stats.maxCond}`);
+  if (!used.ammo && lines.some(l => /^AMMO:/i.test(l)))
+    insertAfter("COND", `AMMO: ${stats.ammo}/${stats.maxAmmo}`);
+  if (!used.dmg && lines.some(l => /^DMG TYPE:/i.test(l)))
+    insertAfter("AMMO", `DMG TYPE: ${stats.dmgType || "Laser"}`);
+  if (!used.ammoItem && lines.some(l => /^AMMO ITEM:/i.test(l)))
+    insertAfter("DMG TYPE", `AMMO ITEM: ${stats.ammoItem || ""}`);
+  if (!used.burst && lines.some(l => /^Burst Fire Mode:/i.test(l)))
+    insertAfter("AMMO ITEM", `Burst Fire Mode: ${stats.burstFireMode ? "ON" : "OFF"}`);
+  if (!used.overcharge && lines.some(l => /^Overcharge Mode:/i.test(l)))
+    insertAfter("AMMO ITEM", `Overcharge Mode: ${stats.overchargeMode ? "ON" : "OFF"}`);
 
   weaponSC.entry = newLines.join('\n').replace(/^\n+|\n+$/g, '');
   if (weaponSC.description.length > 3000) {
@@ -3108,6 +3150,14 @@ function retrieveWeaponStatsFromEntry(entry) {
       stats.ammo = Number(match[1]);
       stats.maxAmmo = Number(match[2]);
     }
+    match = line.match(/^DMG TYPE:\s*(.+)$/i);
+    if (match) {
+      stats.dmgType = match[1].trim();
+    }
+    match = line.match(/^AMMO ITEM:\s*(.+)$/i);
+    if (match) {
+      stats.ammoItem = match[1].trim();
+    }
     match = line.match(/^Burst Fire Mode:\s*(ON|OFF)$/i);
     if (match) {
       stats.burstFireMode = match[1].toUpperCase() === "ON";
@@ -3115,14 +3165,6 @@ function retrieveWeaponStatsFromEntry(entry) {
     match = line.match(/^Overcharge Mode:\s*(ON|OFF)$/i);
     if (match) {
       stats.overchargeMode = match[1].toUpperCase() === "ON";
-    }
-   match = line.match(/^DMG TYPE:\s*(.+)$/i);
-    if (match) {
-      stats.dmgType = match[1].trim();
-    }
-    match = line.match(/^AMMO ITEM:\s*(.+)$/i);
-    if (match) {
-      stats.ammoItem = match[1].trim();
     }
   });
   return stats;
@@ -3132,35 +3174,44 @@ function retrieveWeaponStatsFromEntry(entry) {
 function retrieveWeaponFromSC(weaponName) {
   weaponName = weaponName || getCurrentWeaponName();
   if (!weaponName) return;
-  const weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
-  if (!weaponSC) return;
+   const weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
+  if (!weaponSC) {
+    log(`Weapon story card not found for: ${weaponName}`);
+    return;
+  }
   return retrieveWeaponStatsFromEntry(weaponSC.entry);
 }
 
 // Helper: Update weapon modes in story card
 function updateWeaponModes(weaponName, weaponStats) {
   let weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
-  if (weaponSC) {
-    // Preserve custom lines (like AMMO ITEM)
-    let preservedLines = [];
-    weaponSC.entry.split('\n').forEach(line => {
-      if (/^AMMO ITEM:/i.test(line)) preservedLines.push(line.trim());
-    });
+  if (!weaponSC) return;
 
-    let formatForSC = [];
-    formatForSC.push(`COND: ${weaponStats.cond}/${weaponStats.maxCond}\n`);
-    formatForSC.push(`AMMO: ${weaponStats.ammo}/${weaponStats.maxAmmo}\n`);
-    if (/^Burst Fire Mode:/m.test(weaponSC.entry)) {
-      formatForSC.push(`Burst Fire Mode: ${weaponStats.burstFireMode ? "ON" : "OFF"}\n`);
-    }
-    if (/^Overcharge Mode:/m.test(weaponSC.entry)) {
-      formatForSC.push(`Overcharge Mode: ${weaponStats.overchargeMode ? "ON" : "OFF"}\n`);
-    }
-    formatForSC.push(`DMG TYPE: ${weaponStats.dmgType || "Laser"}\n`);
-    preservedLines.forEach(line => formatForSC.push(line + "\n"));
+  // Split the entry into lines
+  let lines = weaponSC.entry.split('\n');
+  let newLines = [];
+  let statLabels = [
+    { label: "COND:", value: `COND: ${weaponStats.cond}/${weaponStats.maxCond}` },
+    { label: "AMMO:", value: `AMMO: ${weaponStats.ammo}/${weaponStats.maxAmmo}` },
+    { label: "DMG TYPE:", value: `DMG TYPE: ${weaponStats.dmgType || "Laser"}` },
+    { label: "AMMO ITEM:", value: `AMMO ITEM: ${weaponStats.ammoItem || ""}` },
+    { label: "Burst Fire Mode:", value: `Burst Fire Mode: ${weaponStats.burstFireMode ? "ON" : "OFF"}` },
+    { label: "Overcharge Mode:", value: `Overcharge Mode: ${weaponStats.overchargeMode ? "ON" : "OFF"}` }
+  ];
 
-    weaponSC.entry = formatForSC.join("").replace(/,/g, '');
+  for (let line of lines) {
+    let trimmed = line.trim();
+    let replaced = false;
+    for (let stat of statLabels) {
+      if (trimmed.startsWith(stat.label)) {
+        newLines.push(stat.value);
+        replaced = true;
+        break;
+      }
+    }
+    if (!replaced) newLines.push(line);
   }
+  weaponSC.entry = newLines.join('\n').replace(/^\n+|\n+$/g, '');
 }
 
 function detectFireModeToggle(text) {
@@ -3215,7 +3266,7 @@ function detectRangedattack(text) {
 }
 
 
-// Function to increment the weapon's stats (cond and ammo only)
+// --- Patch statUpWeapon to use updateWeaponModes and preserve all lines ---
 function statUpWeapon(statName, incAmt, weaponName) {
   weaponName = weaponName || getCurrentWeaponName();
   if (!weaponName) return;
@@ -3231,12 +3282,8 @@ function statUpWeapon(statName, incAmt, weaponName) {
   // Log stat change in weapon story card
   let sign = incAmt >= 0 ? "⬆️" : "🔻";
   weaponSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} : ${prev} → ${stats[statName]} (Change: ${incAmt})\n` + weaponSC.description;
-  // Store weapon stats back to SC
-  let formatForSC = [];
-  formatForSC.push(`COND: ${stats.cond}/${stats.maxCond}\n`);
-  formatForSC.push(`AMMO: ${stats.ammo}/${stats.maxAmmo}\n`);
-  formatForSC.push(`Burst Fire Mode: ${stats.burstFireMode ? "ON" : "OFF"}\n`);
-  weaponSC.entry = formatForSC.join("").replace(/,/g, '');
+  // Use the improved update function to preserve all lines
+  updateWeaponModes(weaponName, stats);
 }
 
 ////////////////////////////////Inventory Management/////////////////////////////////////////////////////
@@ -3265,7 +3312,10 @@ function createIfNoInvSC(){
 function storeInvToSC(){
   // Fetch the "Player Inventory" card
   const invSC = storyCards.find(sc => sc.title === "Player Inventory");
-
+  if (!invSC) {
+    log('Player Inventory story card not found!');
+    return;
+  }
   // Format and display to sc
   invSC.entry = state.playerInv.item.map((item, index) => `${item} (Amt: ${state.playerInv.amt[index]})`).join("\n");
 
@@ -3282,7 +3332,10 @@ function storeInvToSC(){
 function retrieveInvFromSC(){
   // Fetch the "Player Inventory" card
   const invSC = storyCards.find(sc => sc.title === "Player Inventory");
-
+  if (!invSC) {
+    log('Player Inventory story card not found!');
+    return;
+  }
   // Get inv sc entry
   fromInvSC = invSC.entry;
   log("fromInvSC: " + fromInvSC);
@@ -3322,10 +3375,16 @@ function detectStoreInv(text) {
     // Split on " and " to get possible item phrases
     let itemPhrases = afterEquip.split(/\s+and\s+/i).map(s => s.trim()).filter(Boolean);
 
+    // Regex to remove trailing location phrases (expand as needed)
+    const trailingLocationRegex = /\s*(from|off|on|in|out of|near|by|at|into|onto|upon|beside|under|over|behind|before|after)\s+(the\s+)?[\w\s\-']+$/i;
+
     let addedAny = false;
     for (let phrase of itemPhrases) {
+        // Remove trailing location/prepositional phrase using regex
+        let cleanPhrase = phrase.replace(trailingLocationRegex, '').trim();
+
         // Remove stopwords, equip/inventory words, and trailing verbs/prepositions
-        let itemWords = phrase.split(' ').filter(w =>
+        let itemWords = cleanPhrase.split(' ').filter(w =>
             !equipWords.includes(w.toLowerCase()) &&
             !invWords.includes(w.toLowerCase()) &&
             !stopWords.includes(w.toLowerCase())
@@ -3368,12 +3427,12 @@ function detectStoreInv(text) {
 
         // Add to inventory (merge with existing if present)
         let alreadyIndex = state.playerInv.item.findIndex(i => i.toLowerCase() === itemName.toLowerCase());
-        if (alreadyIndex !== -1) {
-            state.playerInv.amt[alreadyIndex] += itemAmt;
+        if (alreadyIndex !== -1 && state.playerInv.amt[alreadyIndex] !== undefined) {
+           state.playerInv.amt[alreadyIndex] += itemAmt;
         } else {
-            state.playerInv.item.push(itemName);
-            state.playerInv.amt.push(itemAmt);
-        }
+        state.playerInv.item.push(itemName);
+        state.playerInv.amt.push(itemAmt);
+        } 
         state.msgHolder += `🎒 +${itemAmt} ${itemName}\n`;
         addedAny = true;
 
@@ -3417,24 +3476,27 @@ function detectRemoveFromInv(text) {
   for (let i = 0; i < state.playerInv.item.length; i++) {
     let itemName = state.playerInv.item[i].toLowerCase();
     if (t.includes(itemName)) {
-      itemRemoved = state.playerInv.item[i];
+        if (i < state.playerInv.amt.length && state.playerInv.amt[i] !== undefined) {
+            itemRemoved = state.playerInv.item[i];
       // Try to detect amount (e.g., "drop 2 apples")
       let regex = new RegExp(`(?:drop|discard|throw|toss|remove|give|hand|leave|abandon|release|shed|let go|throw away|throw out|get rid of|pass|offer|surrender|yield|forfeit|deliver|send|transfer|take away|taken|stolen|robbed)\\s+(\\d+)\\s+${itemName}`, "i");
       let match = text.match(regex);
       if (match && match[1]) {
         amtRemoved = parseInt(match[1]);
       }
-      // Remove the item(s)
-      state.playerInv.amt[i] -= amtRemoved;
-      if (state.playerInv.amt[i] <= 0) {
-        state.playerInv.item.splice(i, 1);
-        state.playerInv.amt.splice(i, 1);
-      }
-      storeInvToSC();
-      state.msgHolder += `🗑️ -${amtRemoved} ${itemRemoved}\n`;
-      break;
+      // --- Bounds check: never remove more than you have ---
+     amtRemoved = Math.max(1, Math.min(amtRemoved, state.playerInv.amt[i]));
+            state.playerInv.amt[i] -= amtRemoved;
+            if (state.playerInv.amt[i] <= 0) {
+                state.playerInv.item.splice(i, 1);
+                state.playerInv.amt.splice(i, 1);
+            }
+            storeInvToSC();
+            state.msgHolder += `🗑️ -${amtRemoved} ${itemRemoved}\n`;
+            break;
+        }
     }
-  }
+}
   return text;
 }
 
@@ -3723,7 +3785,7 @@ function upgradePlayerSkills(text){
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-//Given an arr of words and an array of player storage (inv, talents, skills), check if anything from storage is mentioned in words arr and returns partialTF,full matchTF,storageindex
+//Given an arr of words and an array of player storage (inv, spells, skills), check if anything from storage is mentioned in words arr and returns partialTF,full matchTF,storageindex
 function checkPlayerStorage(text,wordsArr,playerStorage){
   hasThing = false;
   hasFullThing = false;
@@ -3908,7 +3970,7 @@ function executeSkill(){
     }
   }
 
-// After skill and talent checks, this function detects if the player is performing a heal action and executes the healing process. Defaults to skill healing if both talent and skill healing are available.
+// After skill checks, this function detects if the player is performing a heal action and executes the healing process. Defaults to skill healing if both talent and skill healing are available.
 function detectTalentSkillHeal(){
   // Player must pass at least one of the skill checks to perform a healing action
   if(skillCheck[0]){
@@ -3947,7 +4009,7 @@ function detectTalentSkillHeal(){
   }
 }
 
-//Main action function. Checks for "you + actions" that require items, talents, or skills. Checks if player has something to fulfill it and executes it along with text result
+//Main action function. Checks for "you + actions" that require items, or skills. Checks if player has something to fulfill it and executes it along with text result
 function detectPlrActionsCallingStorage(text){
   startAction = false;
   
@@ -4003,7 +4065,7 @@ function detectPlrActionsCallingStorage(text){
     psykerCheck = checkPlayerStorage(text,plrActionTextInput,state.psykerSpells.name);
     log("psykerCheck: " + psykerCheck);
     
-    // Pipeline order is item>talent>skill
+    // Pipeline order is item>spell>skill
     // If player has the ITEM, get its success or fail text
     if(itemCheck[0]){
       hasAmt = false;
@@ -4251,10 +4313,7 @@ function getActionRepeatCount(text) {
 }
 
 function detectCombatAction(text, actionWords, actionType) {
-  let startAction = false;
-  let repeatCount = getActionRepeatCount(text);
-
-  // Dialogue check
+  // --- Dialogue check ---
   let dialogueCheck = true;
   let textLower = text.toLowerCase();
   dialoguePhrases.forEach(phrase => {
@@ -4263,77 +4322,62 @@ function detectCombatAction(text, actionWords, actionType) {
     }
   });
 
-  // --- Always check for fire mode toggles, even if not attacking yet ---
-  let weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
-  let weaponStats = weaponName ? retrieveWeaponFromSC(weaponName) : null;
-  let fireModeToggled = false;
+  // --- Fire mode toggling is now handled by detectFireModeToggle ---
+  // let weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+  // let weaponStats = weaponName ? retrieveWeaponFromSC(weaponName) : null;
+  // let fireModeToggled = false;
+  // (Fire mode toggling logic removed)
 
-  if (weaponStats) {
-    // Burst Fire toggle
-    if (
-      /(toggle|select|switch|flip|set|change|turn|enable|disable).{0,30}(burst\s*fire|burst)/i.test(textLower) ||
-      /(burst\s*fire|burst).{0,30}(mode|on|off|enabled|disabled)/i.test(textLower) ||
-      /(to|into)\s+burst\s*fire/i.test(textLower) ||
-      /selector.*(to|for|into)\s*burst\s*fire/i.test(textLower) ||
-      /flip.*selector.*burst\s*fire/i.test(textLower)
-    ) {
-      weaponStats.burstFireMode = !weaponStats.burstFireMode;
-      updateWeaponModes(weaponName, weaponStats);
-      storeWeaponToSC(weaponName, weaponStats);
-      state.msgHolder += `Burst Fire Mode is now ${weaponStats.burstFireMode ? "ON" : "OFF"} for your ${weaponName}.\n`;
-      fireModeToggled = true;
-    }
-    // Overcharge toggle
-    if (
-      /(toggle|select|switch|flip|set|change|turn|enable|disable).{0,15}(overcharge)/i.test(textLower) ||
-      /(overcharge).{0,15}(mode|on|off|enabled|disabled)/i.test(textLower) ||
-      /(to|into)\s+overcharge/i.test(textLower)
-    ) {
-      weaponStats.overchargeMode = !weaponStats.overchargeMode;
-      updateWeaponModes(weaponName, weaponStats);
-      storeWeaponToSC(weaponName, weaponStats);
-      state.msgHolder += `Overcharge Mode is now ${weaponStats.overchargeMode ? "ON" : "OFF"} for your ${weaponName}.\n`;
-      fireModeToggled = true;
-    }
-  }
+  if (!dialogueCheck) return text;
 
-  // Action word detection
-  if (dialogueCheck) {
-    let actionTextInput = findTargetsThenSplit(text, actionWords, [], true);
-    if (actionTextInput != null) {
-      let allActionWordIndices = indicesOfTargets(actionTextInput, actionWords);
-      if (allActionWordIndices != null) {
-        startAction = checkYouBeforeIndicesArr(actionTextInput, allActionWordIndices, 3) ||
-                     checkAndBeforeIndicesArr(actionTextInput, allActionWordIndices, 2);
+  // --- Multi-action detection ---
+  // Find all action word indices in the input
+  let actionTextInput = findTargetsThenSplit(text, actionWords, [], true);
+  // If no action words found, just return the text
+  if (!actionTextInput) return text;
+
+  let allActionWordIndices = indicesOfTargets(actionTextInput, actionWords);
+  if (!allActionWordIndices) return text;
+
+  // For each action word occurrence, check if it's in player context and process
+  let resultText = text;
+  let actionsTriggered = 0;
+  for (let idx of allActionWordIndices) {
+    // Check for "you" or "and" context before the action word
+    let youContext = checkYouBeforeIndicesArr(actionTextInput, [idx], 3);
+    let andContext = checkAndBeforeIndicesArr(actionTextInput, [idx], 2);
+    if (youContext || andContext) {
+      // For each action, determine repeat count (look for "twice", "three times", etc. after this action word)
+      let phraseAfter = actionTextInput.slice(idx).join(' ');
+      let repeatCount = getActionRepeatCount(phraseAfter);
+
+      // Only check for equipped weapon if a ranged action is actually being attempted!
+      if (actionType === 'ranged') {
+        let weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+        if (!weaponName) {
+          state.msgHolder += "You do not have a weapon equipped for ranged attacks.\n";
+          resultText += " You fumble for a weapon, but nothing is equipped.";
+          continue;
+        }
+        state.equippedWeapon = weaponName; // cache for this turn
+        let weaponStats = retrieveWeaponFromSC(weaponName) || { cond: 100, ammo: 50, maxCond: 100, maxAmmo: 50, burstFireMode: false, overchargeMode: false };
+        for (let i = 0; i < repeatCount; i++) {
+          resultText = executeAction(resultText, actionType, weaponName, weaponStats);
+          actionsTriggered++;
+        }
+      } else {
+        for (let i = 0; i < repeatCount; i++) {
+          resultText = executeAction(resultText, actionType);
+          actionsTriggered++;
+        }
+      }
+      if (repeatCount > 1) {
+        resultText += ` (Action repeated ${repeatCount} times)`;
       }
     }
   }
 
-  // Only check for equipped weapon if a ranged action is actually being attempted!
-  if (actionType === 'ranged' && startAction) {
-    weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
-    if (!weaponName) {
-      state.msgHolder += "You do not have a weapon equipped for ranged attacks.\n";
-      text += " You fumble for a weapon, but nothing is equipped.";
-      return text;
-    }
-    state.equippedWeapon = weaponName; // cache for this turn
-    weaponStats = retrieveWeaponFromSC(weaponName) || { cond: 100, ammo: 50, maxCond: 100, maxAmmo: 50, burstFireMode: false, overchargeMode: false };
-  }
-
-  // Implements multiple actions
-  if (startAction) {
-    let resultText = text;
-    for (let i = 0; i < repeatCount; i++) {
-      resultText = executeAction(resultText, actionType, weaponName, weaponStats);
-    }
-    if (repeatCount > 1) {
-      resultText += ` (Action repeated ${repeatCount} times)`;
-    }
-    return resultText;
-  }
-  // If only toggling fire mode, still return the text (with msgHolder update)
-  if (fireModeToggled) return text + " [Fire mode toggled]";
+  if (actionsTriggered > 0) return resultText;
   return text;
 }
 
