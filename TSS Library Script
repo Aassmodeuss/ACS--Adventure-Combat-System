@@ -227,7 +227,7 @@ function onOutput_TSS(text) {
 const youWordsRegex = /\b(you|your|yourself|yours|i|my|mine|myself)\b/i;
 
 //Non inventory item blacklist words.
-const nonItemRegex = /\b(cover( behind)?|in cover|take cover|shelter|barrier|corner|wall|floor|ground|ceiling|window|door|hallway|corridor|room|crate|box|table|chair|bed|barricade|pillar|platform|ledge|alcove|nook|hide|hiding spot|spot|location|area|place|position|stance( behind| in| at)?|take aim|aim)\b/i;
+const nonItemRegex = /\b(cover( behind)?|in cover|take cover|shelters?|barriers?|corners?|walls?|floors?|grounds?|ceilings?|windows?|doors?|hallways?|corridors?|rooms?|crates?|tables?|chairs?|beds?|barricades?|pillars?|platforms?|ledges?|alcoves?|nooks?|hides?|hiding spots?|spots?|locations?|areas?|places?|positions?|stances?( behind| in| at)?|take aim|aim|surroundings?)\b/i;
 
 selfWords = ["me", "my", "myself", "mine", "your", "yourself", "yours", "us", "our", "ours", "ourselves"
 ];
@@ -1316,7 +1316,6 @@ const ratkSpdTier10 = [
 luckyPhrases = [
   "a bit of good fortune",
   "a slight stroke of luck",
-  "a touch of serendipity",
   "a minor lucky break",
   "a tad more fortunate",
   "a little extra luck",
@@ -1328,18 +1327,31 @@ luckyPhrases = [
   "just enough luck to matter",
   "luck by a hair",
   "a whisper of good fortune",
-  "some luck"
+  "some luck",
+  "a moment of divine favor",
+  "the threads of fate aligning",
+  "a fleeting glimpse of destiny",
+  "fortune's subtle smile",
+  "a spark of cosmic favor",
+  "the scales tipping ever so slightly",
+  "the winds of chance at your back",
+  "a brief dance with lady luck",
+  "the stars momentarily aligning",
+  "a sliver of exceptional chance",
+  "karma's gentle reward",
+  "the edge of probability bending",
+  "a flash of uncanny timing"
 ];
 
-graspPhrases = [
-  "You clutch",
-  "You seize",
-  "You take hold of",
-  "You latch onto",
-  "You clasp",
-  "You catch hold of",
-  "You cling to",
-  "You grasp"
+sensePhrases = [
+  "🍀You feel",
+  "🍀You sense",
+  "🍀You notice",
+  "🍀You perceive",
+  "🍀You harness",
+  "🍀You channel",
+  "🍀You draw upon",
+  "🍀You tap into"
 ];
 
 healthFeelsHalfway = ["your health feels average", "your health is at a mid-point", "your health feels balanced", "you're in fair health", "your health is in the middle", "your health is at an even keel", "your health feels stable but moderate", "you're halfway to full strength", "your health is neither strong nor weak", "your health is moderate", "you're at half strength", "your health stands at the halfway mark", "your vitality is halfway depleted", "you're in a neutral state of health", "your health is balanced at half", "you're halfway from full vigor", "your health is split right down the middle", "you're not in great shape, but not at rock bottom", "your body feels neither strong nor weak, just halfway there", "you're at the middle of your strength"]
@@ -3057,6 +3069,19 @@ function createIfNoWeaponSC() {
   }
 }
 
+// Add a vibro blade melee weapon to your arsenal
+addStoryCard("Vibro Blade", "A deadly vibrating blade with microscopic serrations.", "Weapons");
+const vibroBladeSC = storyCards.find(sc => sc.title === "Vibro Blade");
+vibroBladeSC.description = "Format for Modifying: Stat: num/maxNum";
+vibroBladeSC.entry =
+  "Vibro Blade\n" +
+  "COND: 100/100\n" +
+  "CHARGE: 100/100\n" +
+  "DMG TYPE: Vibration/Cutting\n" +
+  "CHARGE ITEM: power cell\n" +
+  "Vibro Blade\n" +
+  "The Vibro Blade is a fearsome melee weapon with microscopic serrated edges that vibrate at ultrasonic frequencies. When activated, it can slice through armor and flesh with terrifying efficiency, creating a distinctive humming sound. Standard issue for close-quarters combat specialists.";
+
 // STORES and displays weapon stats in sc
 function storeWeaponToSC(weaponName, weaponStatsOverride) {
   weaponName = weaponName || getCurrentWeaponName();
@@ -3359,6 +3384,15 @@ function retrieveInvFromSC(){
 
 
 function detectStoreInv(text) {
+
+  // Prevent inventory actions during dialogue
+ if (isPlayerDialoguing(text)) return text; // Skip inventory logic if dialoguing
+
+ // First, check if this is actually a combat action
+  if (/take\s+aim|aim\s+at|and\s+fire|you\s+fire|fire\s+at/i.test(text.toLowerCase())) {
+    return text; // This is likely a combat action, not inventory management
+  }
+
     // Remove punctuation except hyphens, split into words
     let wordsArr = text.replace(/[.,!?]/g, '').replace(/\s+/g, ' ').trim().split(' ');
 
@@ -3420,7 +3454,7 @@ function detectStoreInv(text) {
         if (!itemName || itemName.length < 2) continue;
 
         // --- Regex: Ignore environmental/non-item phrases ---
-        if (nonItemRegex.test(itemName.toLowerCase())) {
+        if (debugNonItemMatch(itemName)) {
             state.msgHolder += `Ignored non-item phrase: "${itemName}"\n`;
             continue;
         }
@@ -3471,6 +3505,9 @@ function detectRemoveFromInv(text) {
   // Try to find which item is being removed
   let itemRemoved = null;
   let amtRemoved = 1;
+  
+  // Get currently equipped weapon for comparison
+  let equippedWeapon = state.equippedWeapon || retrieveEquippedWeaponFromSC();
 
   // Try to match an item from inventory
   for (let i = 0; i < state.playerInv.item.length; i++) {
@@ -3478,25 +3515,38 @@ function detectRemoveFromInv(text) {
     if (t.includes(itemName)) {
         if (i < state.playerInv.amt.length && state.playerInv.amt[i] !== undefined) {
             itemRemoved = state.playerInv.item[i];
-      // Try to detect amount (e.g., "drop 2 apples")
-      let regex = new RegExp(`(?:drop|discard|throw|toss|remove|give|hand|leave|abandon|release|shed|let go|throw away|throw out|get rid of|pass|offer|surrender|yield|forfeit|deliver|send|transfer|take away|taken|stolen|robbed)\\s+(\\d+)\\s+${itemName}`, "i");
-      let match = text.match(regex);
-      if (match && match[1]) {
-        amtRemoved = parseInt(match[1]);
-      }
-      // --- Bounds check: never remove more than you have ---
-     amtRemoved = Math.max(1, Math.min(amtRemoved, state.playerInv.amt[i]));
+            
+            // Try to detect amount (e.g., "drop 2 apples")
+            let regex = new RegExp(`(?:drop|discard|throw|toss|remove|give|hand|leave|abandon|release|shed|let go|throw away|throw out|get rid of|pass|offer|surrender|yield|forfeit|deliver|send|transfer|take away|taken|stolen|robbed)\\s+(\\d+)\\s+${itemName}`, "i");
+            let match = text.match(regex);
+            if (match && match[1]) {
+                amtRemoved = parseInt(match[1]);
+            }
+            
+            // --- Bounds check: never remove more than you have ---
+            amtRemoved = Math.max(1, Math.min(amtRemoved, state.playerInv.amt[i]));
             state.playerInv.amt[i] -= amtRemoved;
+            
+            // Check if this is the equipped weapon and we're removing all of it
+            if (equippedWeapon && equippedWeapon.toLowerCase() === itemName && 
+                (state.playerInv.amt[i] <= 0 || amtRemoved === state.playerInv.amt[i])) {
+                storeEquippedWeaponToSC(""); // Clear the equipped weapon
+                state.equippedWeapon = null; // Also clear the state variable
+                state.msgHolder += `You no longer have ${itemRemoved} equipped.\n`;
+            }
+            
+            // Remove item completely if amount is 0
             if (state.playerInv.amt[i] <= 0) {
                 state.playerInv.item.splice(i, 1);
                 state.playerInv.amt.splice(i, 1);
             }
+            
             storeInvToSC();
             state.msgHolder += `🗑️ -${amtRemoved} ${itemRemoved}\n`;
             break;
         }
     }
-}
+  }
   return text;
 }
 
@@ -4010,25 +4060,17 @@ function detectTalentSkillHeal(){
 }
 
 //Main action function. Checks for "you + actions" that require items, or skills. Checks if player has something to fulfill it and executes it along with text result
-function detectPlrActionsCallingStorage(text){
+function detectPlrActionsCallingStorage(text) {
+  // Prevent action triggers during dialogue
+  if (isPlayerDialoguing(text)) return text; // Skip action logic if dialoguing
+
   startAction = false;
-  
-  // Verify player is not dialoguing (case-insensitive)
-  dialogueCheck = true;
-  textLower = text.toLowerCase();
-  dialoguePhrases.forEach(phrase => {
-    if(textLower.includes(phrase.toLowerCase())){
-      // Disable check dialoguing exists
-      dialogueCheck = false;
-    }
-  });
 
   //If player is not dialoguing, check input for action words and split the input
-  if(dialogueCheck == true){
-    allActionWords = [...castWords,...healingActions];
-    plrActionTextInput = [];
-    plrActionTextInput = findTargetsThenSplit(text,allActionWords,plrActionTextInput,true);
-    console.log("plrActionTextInput simplified: " + plrActionTextInput);
+  allActionWords = [...castWords,...healingActions];
+  plrActionTextInput = [];
+  plrActionTextInput = findTargetsThenSplit(text,allActionWords,plrActionTextInput,true);
+  console.log("plrActionTextInput simplified: " + plrActionTextInput);
 
     //If input has action words get their indices
     if(plrActionTextInput != null){
@@ -4042,7 +4084,7 @@ function detectPlrActionsCallingStorage(text){
         log("startAction: " + startAction);
       }
     }
-  }
+  
 
   if(startAction == true){
     // Initialize arrays [hasthing,hasfullthing,finalthingindex]
@@ -4136,22 +4178,15 @@ if (skillCheck[0]) {
 function detectResting(text){
   startRest = false;
   isEntering = false;
-    
-  // Verify player is not dialoguing (case-insensitive)
-  dialogueCheck = true;
-  textLower = text.toLowerCase();
-  dialoguePhrases.forEach(phrase => {
-    if(textLower.includes(phrase.toLowerCase())){
-      // Disable check dialoguing exists
-      dialogueCheck = false;
-    }
-  });
 
-  //If player is not dialoguing, check input for enter words and split the input
-  if(dialogueCheck == true){
-    restingTextInput = []
-    restingTextInput = findTargetsThenSplit(text,enterWords,restingTextInput,true);
-    console.log("restingTextInput simplified: " + restingTextInput);
+  // Prevent resting actions during dialogue
+  if (isPlayerDialoguing(text)) return text;
+
+  // Check input for enter words and split the input
+  restingTextInput = [];
+  restingTextInput = findTargetsThenSplit(text, enterWords, restingTextInput, true);
+  console.log("restingTextInput simplified: " + restingTextInput);
+
 
     //If input has enter words get their indices
     if(restingTextInput != null){
@@ -4168,7 +4203,6 @@ function detectResting(text){
         log("startRest: " + startRest);
       }
     }
-  }
 
   if(isEntering && startRest){
     //Replenish stats based on player rest intensity
@@ -4213,22 +4247,15 @@ function detectResting(text){
 //Detects when player consumes something which heals them.
 function detectConsuming(text){
   startConsume = false;
-    
-  // Verify player is not dialoguing (case-insensitive)
-  dialogueCheck = true;
-  textLower = text.toLowerCase();
-  dialoguePhrases.forEach(phrase => {
-    if(textLower.includes(phrase.toLowerCase())){
-      // Disable check dialoguing exists
-      dialogueCheck = false;
-    }
-  });
 
-  //If player is not dialoguing, check input for consume words and split the input
-  if(dialogueCheck == true){
-    consumingTextInput = []
-    consumingTextInput = findTargetsThenSplit(text,consumeWords,consumingTextInput,true);
-    console.log("consumingTextInput simplified: " + consumingTextInput);
+  // Prevent consuming actions during dialogue
+  if (isPlayerDialoguing(text)) return text;
+
+  // Check input for consume words and split the input
+  consumingTextInput = [];
+  consumingTextInput = findTargetsThenSplit(text, consumeWords, consumingTextInput, true);
+  console.log("consumingTextInput simplified: " + consumingTextInput);
+
 
     //If input has consume words get their indices
     if(consumingTextInput != null){
@@ -4242,7 +4269,6 @@ function detectConsuming(text){
         log("startConsume: " + startConsume);
       }
     }
-  }
 
   if(startConsume){
     //Verify intensity of player consumable
@@ -4314,21 +4340,7 @@ function getActionRepeatCount(text) {
 
 function detectCombatAction(text, actionWords, actionType) {
   // --- Dialogue check ---
-  let dialogueCheck = true;
-  let textLower = text.toLowerCase();
-  dialoguePhrases.forEach(phrase => {
-    if (textLower.includes(phrase.toLowerCase())) {
-      dialogueCheck = false;
-    }
-  });
-
-  // --- Fire mode toggling is now handled by detectFireModeToggle ---
-  // let weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
-  // let weaponStats = weaponName ? retrieveWeaponFromSC(weaponName) : null;
-  // let fireModeToggled = false;
-  // (Fire mode toggling logic removed)
-
-  if (!dialogueCheck) return text;
+  if (isPlayerDialoguing(text)) return text;
 
   // --- Multi-action detection ---
   // Find all action word indices in the input
@@ -4457,6 +4469,16 @@ function executeAction(text, actionType, weaponName, weaponStats) {
     if (!resourceCheck) return text + ` *Click* your weapon is out of ammunition.`;
 }
 
+  let luckyHit = false;
+  let luckRoll = randomInt(1, 100);
+  if (luckRoll <= state.playerStats.lck && luckRoll >= 1) {
+    luckyHit = true;
+    statUp("lck", randomFloat(0.01, 1));
+    
+    // Add lucky message FIRST 
+    text += ` ${sensePhrases[randomInt(0, sensePhrases.length - 1)]} ${luckyPhrases[randomInt(0, luckyPhrases.length - 1)]}.`;
+  }
+
   // Speed message
   for (let range of spdRanges) {
     if (spd >= range.min && spd < range.max) {
@@ -4484,13 +4506,6 @@ function executeAction(text, actionType, weaponName, weaponStats) {
     updateWeaponModes(weaponName, weaponStats);
     storeWeaponToSC(weaponName, weaponStats); // Pass the updated stats!
     log("Ammo after deduction: " + weaponStats.ammo);
-  }
-
-  // Luck roll
-  let luckRoll = randomInt(1, 100);
-  if (luckRoll <= state.playerStats.lck && luckRoll >= 1) {
-    text += ` ${graspPhrases[randomInt(0, graspPhrases.length - 1)]} ${luckyPhrases[randomInt(0, luckyPhrases.length - 1)]}.`;
-    statUp("lck", randomFloat(0.01, 1));
   }
 
   storeStatsToSC();
@@ -4555,5 +4570,38 @@ function detectHurt(text) {
   return text;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////Helper Functions/////////////////////////////////////////////
 
+// Helper function to check if player is dialoguing
+function isPlayerDialoguing(text) {
+  let textLower = text.toLowerCase();
+  return dialoguePhrases.some(phrase => textLower.includes(phrase.toLowerCase()));
+}
+
+// Helper function for debugging non-item matches
+function debugNonItemMatch(itemName) {
+  const lowerItem = itemName.toLowerCase();
+  if (nonItemRegex.test(lowerItem)) {
+    // List of all patterns to check individually
+    const patterns = [
+      "cover( behind)?", "in cover", "take cover", "shelters?", "barriers?", "corners?", 
+      "walls?", "floors?", "grounds?", "ceilings?", "windows?", "doors?", "hallways?", 
+      "corridors?", "rooms?", "crates?", "tables?", "chairs?", "beds?", "barricades?", 
+      "pillars?", "platforms?", "ledges?", "alcoves?", "nooks?", "hides?", "hiding spots?", 
+      "spots?", "locations?", "areas?", "places?", "positions?", 
+      "stances?( behind| in| at)?", "take aim", "aim", "surroundings?"
+    ];
+    
+    // Find which specific pattern caused the match
+    for (const pattern of patterns) {
+      const regex = new RegExp(`\\b${pattern}\\b`, 'i');
+      if (regex.test(lowerItem)) {
+        console.log(`🚫 Item "${itemName}" was filtered out by nonItemRegex pattern: "${pattern}"`);
+        return true;
+      }
+    }
+    console.log(`🚫 Item "${itemName}" was filtered out by nonItemRegex but specific pattern not identified`);
+    return true;
+  }
+  return false;
+}
