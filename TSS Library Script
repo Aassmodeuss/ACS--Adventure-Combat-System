@@ -1762,10 +1762,14 @@ function helpCommandInput_TSS(text){
     - /help inventory — Storing and managing items
     - /help actions — Combat, healing, resting, and usage behaviors
     - /help keywords — Command triggers
+    - /reset — Resets game over state allowing you to continue your playthrough after modirying your stats.
     >>
     `
   }
-  //todo: clear command from text
+   else if (text.includes("/reset")) {
+    resetGameOverState();
+    state.msgHolder += "Game over state reset. You may continue your adventure!\n";
+  }
 }
 
 function helpCommandOutput_TSS(text){
@@ -3066,21 +3070,22 @@ function createIfNoWeaponSC() {
       "Overcharge Mode: OFF\n" +
       "RS-43 Longstrike\n" +
       "The RS-43 Longstrike is a powerful long-range rifle with overcharge capability for greatly increased damage at the cost of full power cell consumption.\n";
+
+    // Vibro Blade
+    addStoryCard("Vibro Blade", "A deadly vibrating blade with microscopic serrations.", "Weapons");
+    const vibroBladeSC = storyCards.find(sc => sc.title === "Vibro Blade");
+    vibroBladeSC.description = "Format for Modifying: Stat: num/maxNum";
+    vibroBladeSC.entry =
+      "Vibro Blade\n" +
+      "COND: 100/100\n" +
+      "CHARGE: 100/100\n" +
+      "DMG TYPE: Vibration/Cutting\n" +
+      "CHARGE ITEM: power cell\n" +
+      "Vibro Blade\n" +
+      "The Vibro Blade is a fearsome melee weapon with microscopic serrated edges that vibrate at ultrasonic frequencies. When activated, it can slice through armor and flesh with terrifying efficiency, creating a distinctive humming sound. Standard issue for close-quarters combat specialists.";
   }
 }
 
-// Add a vibro blade melee weapon to your arsenal
-addStoryCard("Vibro Blade", "A deadly vibrating blade with microscopic serrations.", "Weapons");
-const vibroBladeSC = storyCards.find(sc => sc.title === "Vibro Blade");
-vibroBladeSC.description = "Format for Modifying: Stat: num/maxNum";
-vibroBladeSC.entry =
-  "Vibro Blade\n" +
-  "COND: 100/100\n" +
-  "CHARGE: 100/100\n" +
-  "DMG TYPE: Vibration/Cutting\n" +
-  "CHARGE ITEM: power cell\n" +
-  "Vibro Blade\n" +
-  "The Vibro Blade is a fearsome melee weapon with microscopic serrated edges that vibrate at ultrasonic frequencies. When activated, it can slice through armor and flesh with terrifying efficiency, creating a distinctive humming sound. Standard issue for close-quarters combat specialists.";
 
 // STORES and displays weapon stats in sc
 function storeWeaponToSC(weaponName, weaponStatsOverride) {
@@ -4061,116 +4066,110 @@ function detectTalentSkillHeal(){
 
 //Main action function. Checks for "you + actions" that require items, or skills. Checks if player has something to fulfill it and executes it along with text result
 function detectPlrActionsCallingStorage(text) {
-  // Prevent action triggers during dialogue
-  if (isPlayerDialoguing(text)) return text; // Skip action logic if dialoguing
+    // Prevent action triggers during dialogue
+    if (isPlayerDialoguing(text)) return text; // Skip action logic if dialoguing
 
-  startAction = false;
+    startAction = false;
 
-  //If player is not dialoguing, check input for action words and split the input
-  allActionWords = [...castWords,...healingActions];
-  plrActionTextInput = [];
-  plrActionTextInput = findTargetsThenSplit(text,allActionWords,plrActionTextInput,true);
-  console.log("plrActionTextInput simplified: " + plrActionTextInput);
+    //If player is not dialoguing, check input for action words and split the input
+    allActionWords = [...castWords,...healingActions];
+    plrActionTextInput = [];
+    plrActionTextInput = findTargetsThenSplit(text,allActionWords,plrActionTextInput,true);
+    console.log("plrActionTextInput simplified: " + plrActionTextInput);
 
-    //If input has action words get their indices
-    if(plrActionTextInput != null){
-      allActionWordIndices = [];
-      allActionWordIndices = indicesOfTargets(plrActionTextInput,allActionWords);
-      log("allActionWordIndices:" + allActionWordIndices);
+      //If input has action words get their indices
+      if(plrActionTextInput != null){
+        allActionWordIndices = [];
+        allActionWordIndices = indicesOfTargets(plrActionTextInput,allActionWords);
+        log("allActionWordIndices:" + allActionWordIndices);
 
-      //Detect if there is  "you + actionword" or "and + actionword"
-      if(allActionWordIndices != null){
-        startAction = checkYouBeforeIndicesArr(plrActionTextInput,allActionWordIndices,3) || checkAndBeforeIndicesArr(plrActionTextInput,allActionWordIndices,2);
-        log("startAction: " + startAction);
+        //Detect if there is  "you + actionword" or "and + actionword"
+        if(allActionWordIndices != null){
+          startAction = checkYouBeforeIndicesArr(plrActionTextInput,allActionWordIndices,3) || checkAndBeforeIndicesArr(plrActionTextInput,allActionWordIndices,2);
+          log("startAction: " + startAction);
+        }
       }
-    }
-  
-
-  if(startAction == true){
-    // Initialize arrays [hasthing,hasfullthing,finalthingindex]
-    itemCheck = [false,false,false];
-    skillCheck = [false,false,false];
-    psykerCheck = [false,false,false];
-    postActionText = "";
-    notEnoughText = "";
-
-    //Check if player storage has thing used in input text available then returns [hasthing, hasfullthing, finalthingindex]
-    itemCheck = checkPlayerStorage(text,plrActionTextInput,state.playerInv.item);
-    log("itemCheck: " + itemCheck);
-
-
-    // Check for regular skill
-    skillCheck = checkPlayerStorage(text,plrActionTextInput,state.playerSkills.name);
-    log("skillCheck: " + skillCheck);
-
-    // Check for psyker spell
-    psykerCheck = checkPlayerStorage(text,plrActionTextInput,state.psykerSpells.name);
-    log("psykerCheck: " + psykerCheck);
     
-    // Pipeline order is item>spell>skill
-    // If player has the ITEM, get its success or fail text
-    if(itemCheck[0]){
-      hasAmt = false;
-      fullItemMatch = itemCheck[1];
-      itemIndex = itemCheck[2];
-    }
 
-    // --- PSYKER SPELL LOGIC ---
-    if (psykerCheck[0]) {
-      fullPsykerMatch = psykerCheck[1];
-      psykerIndex = psykerCheck[2];
+      if(startAction == true){
+        // Initialize arrays [hasthing,hasfullthing,finalthingindex]
+        itemCheck = [false,false,false];
+        skillCheck = [false,false,false];
+        psykerCheck = [false,false,false];
+        postActionText = "";
+        notEnoughText = "";
 
-      // Check if player corruption is enough for the spell
-      hasCorruption = state.playerStats.cp >= state.psykerSpells.cost[psykerIndex];
-      console.log("hasCorruption (psyker): " + hasCorruption);
+        //Check if player storage has thing used in input text available then returns [hasthing, hasfullthing, finalthingindex]
+        itemCheck = checkPlayerStorage(text,plrActionTextInput,state.playerInv.item);
+        log("itemCheck: " + itemCheck);
 
 
-      // Not enough CP
-      if (!hasCorruption) {
-        psykerCheck[0] = false;
-        notEnoughText = " you feel the corruption of the warp overwhelm you, the whispers within your mind grow to a deafening shout as they struggle for dominance over your body " + state.psykerSpells.name[psykerIndex] + ".";
-      } else {
+        // Check for regular skill
+        skillCheck = checkPlayerStorage(text,plrActionTextInput,state.playerSkills.name);
+        log("skillCheck: " + skillCheck);
+
+        // Check for psyker spell
+        psykerCheck = checkPlayerStorage(text,plrActionTextInput,state.psykerSpells.name);
+        log("psykerCheck: " + psykerCheck);
+        
+        // Pipeline order is item>spell>skill
+        // If player has the ITEM, get its success or fail text
+        if(itemCheck[0]){
+          hasAmt = false;
+          fullItemMatch = itemCheck[1];
+          itemIndex = itemCheck[2];
+        }
+
+        // --- PSYKER SPELL LOGIC ---
+        if (psykerCheck[0]) {
+        fullPsykerMatch = psykerCheck[1];
+        psykerIndex = psykerCheck[2];
+
+        // Always increase CP by spell cost, even for partial matches
+        statUp("cp", state.psykerSpells.cost[psykerIndex] * 1);
+
+        // Execute the spell
         executePsykerSpell(psykerIndex, fullPsykerMatch);
+
+
+
+
+        // If player has the SKILL, check if they have enough cp, else make reject text
+        if (skillCheck[0]) {
+          fullSkillMatch = skillCheck[1];
+          skillIndex = skillCheck[2];
+
+          executeSkill();
+        }
+
+        // Checks for healing and executes it. Defaults to skill heal if both talent and skill work
+        detectTalentSkillHeal();
+
+        // Finalize action execution by appending text
+        if(itemCheck[0]|| skillCheck[0]){
+          text = text + postActionText;
+          return text;
+        }
+
+        // If plr fails all checks, finalize action rejection
+        if(!itemCheck[0] && !skillCheck[0]){
+          // Failure Condition 1: plr passed a/all check but then failed all b/c no ep/cp/item amt
+          if(notEnoughText.length > 0){
+            text = text + notEnoughText;
+            return text;
+          }
+          // Failure Condition 2: nonexistent in storage 
+          else{ 
+            text = text + ` ${realizePhrases[randomInt(0,realizePhrases.length-1)]} ${becauseYouPhrases[randomInt(0,becauseYouPhrases.length-1)]} ${assumedWrongPhrases[randomInt(0,assumedWrongPhrases.length-1)]}, ${slightlyWorseResults[randomInt(0,slightlyWorseResults.length-1)]}.`
+            return text;
+          }      
+        }
       }
-    }
 
+    }//end of start action
 
-    // If player has the SKILL, check if they have enough cp, else make reject text
-if (skillCheck[0]) {
-  fullSkillMatch = skillCheck[1];
-  skillIndex = skillCheck[2];
-
-  executeSkill();
-}
-
-    // Checks for healing and executes it. Defaults to skill heal if both talent and skill work
-    detectTalentSkillHeal();
-
-    // Finalize action execution by appending text
-    if(itemCheck[0]|| skillCheck[0]){
-      text = text + postActionText;
-      return text;
-    }
-
-    // If plr fails all checks, finalize action rejection
-    if(!itemCheck[0] && !skillCheck[0]){
-      // Failure Condition 1: plr passed a/all check but then failed all b/c no ep/cp/item amt
-      if(notEnoughText.length > 0){
-        text = text + notEnoughText;
-        return text;
-      }
-      // Failure Condition 2: nonexistent in storage 
-      else{ 
-        text = text + ` ${realizePhrases[randomInt(0,realizePhrases.length-1)]} ${becauseYouPhrases[randomInt(0,becauseYouPhrases.length-1)]} ${assumedWrongPhrases[randomInt(0,assumedWrongPhrases.length-1)]}, ${slightlyWorseResults[randomInt(0,slightlyWorseResults.length-1)]}.`
-        return text;
-      }      
-    }
-
-
-  }//end of start action
-
-  return text;
-}
+   return text;
+  }
 
 /////////////////////////////////////////////////////////////////////////////////////
 
@@ -4568,6 +4567,14 @@ function detectHurt(text) {
   testHurt(moderateHurtWords, "Moderate", text);
   testHurt(lightHurtWords, "Light", text);
   return text;
+}
+
+// Resets game over state to allows player to continue story
+function resetGameOverState() {
+  state.gameOver = false;
+  state.msgHolder = "";
+  // Optionally reset other game over flags or stats here
+  log("Game over state has been reset.");
 }
 
 ////////////////////////////////////////Helper Functions/////////////////////////////////////////////
