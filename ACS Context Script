@@ -1,8 +1,8 @@
-// TSS Context Script
+// ACS Context Script
 
 // Every script needs a modifier function
 const modifier = (text) => {
-  text = onContext_TSS(text);
+  text = onContext_ACS(text);
  
   return { text }
 }
