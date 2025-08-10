@@ -1,0 +1,3498 @@
+// ACS Library Script
+
+// Adventure Combat System (ACS) SCRIPT by Aassmodeuss
+
+// Credits
+  // Yi1i1i - For creating True Auto Stats (TAS) which this entire script is based on
+  // BinKompliziert - Idea for Capitalization weighting for skill learning
+  // jackoneill2443 - Idea for modifying player input to show stat results
+  // LewdLeah - General Scripting Knowledge
+//
+
+// This function runs the library hook
+onLibrary_ACS();
+
+// LIBRARY HOOK
+function onLibrary_ACS() {
+  // UNLOCK SCRIPT FOR DEBUG (Comment out to turn off)
+  state.startScript = true;
+  log("state.startScript: " + state.startScript);
+
+  // Initialize variables
+  if (state.startScript == undefined) {
+    state.startScript = false;
+  }
+  if (state.turnCount == undefined) {
+    state.turnCount = 0;
+  }
+  if (state.msgHolder == undefined){
+    state.msgHolder = "";
+  }
+  // Ensure counters are defined (prevents NaN when incrementing)
+  if (state.inputCount == undefined) {
+    state.inputCount = 0;
+  }
+  if (state.outputCount == undefined) {
+    state.outputCount = 0;
+  }
+}
+
+// Utility function to get weapon names from story cards
+function getWeaponNamesFromStoryCards() {
+    return storyCards
+        .filter(sc => sc.type === "Weapons" || sc.category === "Weapons") // adjust as needed
+        .map(sc => sc.title.toLowerCase());
+}
+
+// INPUT HOOK
+function onInput_ACS(text) {
+  
+  //Check for unlocking
+  text = unlockScript(text);
+
+  //Check for locking
+  text = lockScript(text);
+
+  helpCommandInput_ACS(text);
+
+  //Unlocking runs main()
+  if (state.startScript == true && info.actionCount >= 0) {
+    state.inputCount += 1;
+    log("state.inputCount: " + state.inputCount);
+
+
+    // Always check for game over due to corruption at the start of every turn
+  if (state.gameOver) {
+  let gameOverMsg = " The corruption of the warp overwhelms you. You are possessed by an entity of the warp and lose control of your body. GAME OVER.\n";
+  text += gameOverMsg;
+  state.msgHolder += "GAME OVER. You were possessed by corruption!\n";
+  return text;
+}
+
+    //Detect weapon equip/holster first
+    text = detectWeaponEquip(text);
+
+     //Detect fire mode toggles (standalone)
+    text = detectFireModeToggle(text);
+
+
+    //Create story cards if none
+    createIfNoStatSC();
+    createIfNoInvSC();
+    createIfNoSkillSC();
+    createIfNoPsykerSpellSC();
+    createIfNoModifierSC();        
+    createIfNoWeaponSC();    
+    createIfNoWeaponmodSC();
+    createIfNoEquippedWeaponSC();
+    createIfNoInjurySC();
+  
+    //Updates codebase if player edits their storage SCs
+    retrieveStatsFromSC();
+    retrieveSkillsFromSC();
+    ensureLevelUpsSync(state.playerSkills)
+    retrievePsykerSpellsFromSC();
+    ensureLevelUpsSync(state.psykerSpells);
+    retrieveInvFromSC();
+    retrieveModifiersFromSC();
+    retrieveWeaponFromSC();
+    retrieveWeaponmodsFromSC();
+    retrieveEquippedWeaponFromSC();
+    
+    // --- Contextual skill/spell activation ---
+    const ctxChoice = detectContextualSkillsAndSpells(text);
+    text = runContextualActivation(text, ctxChoice);
+
+    text = detectPassiveSkillTrigger(text);
+
+    text = detectStoreInv(text);
+
+    text = detectRemoveFromInv(text);
+
+    text = detectAttack(text);
+    
+    text = detectRangedattack(text);
+
+    text = detectResting(text);
+
+    text = detectConsuming(text);
+
+    text = upgradePlayerSkills(text);
+
+    text = warnPlayerHealth(text);
+
+    text = detectReload(text);
+
+    
+ 
+   }//end of main()
+  
+
+  return text;
+}
+
+// CONTEXT HOOK
+function onContext_ACS(text){
+  const preLen = (text && text.length) || 0;
+  log(`[Context] onContext_ACS start len=${preLen}`);
+
+  text = removeAngleText(text);
+  log(`[Context] after removeAngleText len=${(text && text.length) || 0}`);
+
+  // Inject last so it survives other injections and stays compact
+  const before = (text && text.length) || 0;
+  text = injectInjuryFlagProtocol(text);
+  const after = (text && text.length) || 0;
+  log(`[Context] injected InjuryProto lenDelta=${after - before}`);
+
+  return text;
+}
+
+// OUTPUT HOOK
+function onOutput_ACS(text) {
+  text = helpCommandOutput_ACS(text);
+
+  // start of main()
+  if (state.startScript == true && info.actionCount >= 0) {
+    state.outputCount += 1;
+    log("state.outputCount: " + state.outputCount);
+
+    //Create story cards if none
+    createIfNoStatSC();
+    createIfNoInvSC();
+    createIfNoSkillSC();
+    createIfNoPsykerSpellSC();
+    createIfNoModifierSC();
+    createIfNoWeaponSC();
+    createIfNoWeaponmodSC();
+    createIfNoEquippedWeaponSC();
+    createIfNoInjurySC();
+
+    if (state.gameOver) {
+      let gameOverMsg = " #The corruption of the warp overwhelms you. You are possessed by an entity of the warp and lose control of your body. GAME OVER. #\n";
+      text += gameOverMsg;
+      state.msgHolder += "GAME OVER. You were possessed by corruption!\n";
+      return text;
+    }
+
+    // Parse and store injury flags first; strip them from visible output
+    log(`[InjuryProto] scanning output for flags; outLen=${(text && text.length) || 0}`);
+    const flagRes = consumeInjuryFlags(text);
+    log(`[InjuryProto] found=${flagRes.count || 0} hadFlags=${!!flagRes.hadFlags}`);
+    if (flagRes.hadFlags) {
+      text = flagRes.cleanedText;
+      log(`[InjuryProto] cleaned output len=${(text && text.length) || 0}`);
+    }
+
+    //Updates player stats in code if player edits their stats in SC
+    retrieveStatsFromSC();
+    //Stat edits made by the code
+    playerNaturalRegen();
+
+    //Final stats store back to SC in correct formatting
+    storeStatsToSC();
+
+
+    //Updates player skills in code if player edits their skills in SC
+    retrieveSkillsFromSC();
+    ensureLevelUpsSync(state.playerSkills)
+    //Final skill store back to SC in correct formatting
+    storeSkillsToSC();
+   
+    //Updates psyker spells in code if player edits their spells in SC
+    retrievePsykerSpellsFromSC();
+    ensureLevelUpsSync(state.psykerSpells);
+    //Final spell store back to SC in correct formatting
+    storePsykerSpellsToSC();
+
+    //Updates player inv in code if player edits their inv in SC
+    retrieveInvFromSC();
+    //Final skill store back to SC in correct formatting
+    storeInvToSC();
+
+    //Updates player mods in code if player edits their mods in SC
+    retrieveModifiersFromSC();
+    //Final mods store back to SC in correct formatting
+    storeModifiersToSC();
+    
+    //Updates Weapon in code if player edits Weapon in SC
+    retrieveWeaponFromSC();
+    //Final stats store back to SC in correct formatting
+    storeWeaponToSC();
+    
+    //Updates weapon mods in code if player edits their weapon mods in SC
+    retrieveWeaponmodsFromSC();
+    //Final mods store back to SC in correct formatting
+    storeWeaponmodsToSC();
+
+   // Retrieve equipped weapon from the "Equipped Gear" category
+   //retrieveEquippedWeaponFromSC()
+   //Final equipped weapon stores back to SC in correct formatting
+   //storeEquippedWeaponToSC()
+
+    state.message = state.msgHolder;
+    state.msgHolder = "";
+
+    turnCounter();
+  }//end of main()
+  return text;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+// Matches "you", "your", "yourself", "yours", "i", "my", "mine", "myself" (case-insensitive)
+const youWordsRegex = /\b(you|your|yourself|yours|i|my|mine|myself)\b/i;
+
+//Non inventory item blacklist words.
+const nonItemRegex = /\b(cover( behind)?|in cover|take cover|shelters?|barriers?|corners?|walls?|floors?|grounds?|ceilings?|windows?|doors?|hallways?|corridors?|rooms?|crates?|tables?|chairs?|beds?|barricades?|pillars?|platforms?|ledges?|alcoves?|nooks?|hides?|hiding spots?|spots?|locations?|areas?|places?|positions?|stances?( behind| in| at)?|take aim|aim|surroundings?)\b/i;
+
+selfWords = ["me", "my", "myself", "mine", "your", "yourself", "yours", "us", "our", "ours", "ourselves"
+];
+
+// ---- Injury/Healing Flag Protocol REGEX ----
+const INJURY_FLAG_REGEX = /<!inj>([\s\S]*?)<\/inj>/gim;
+const HEAL_FLAG_REGEX   = /<!heal>([\s\S]*?)<\/heal>/gim;
+
+
+castWords = [
+  "activate", "amplify", "bind", "blast", "boost", "burst", "cast", "casting", "channel", "charge", "channeling", "command", "commanding", "conjure", 
+  "create", "creating", "detonate", "enchant", "enchanting", "evoke", "explode", 
+  "expel", "exude", "flare", "flow", "form", "gather", "gathering", "glow", "harness", "hex", "ignite", "infuse", "invoke", "invoking", "launch", "manifest", "project", "projecting", "pulse","perform", "quicken", "release", "shape", "shift", "shoot", "shooting", "summon", "summoning", "transform", "transforming", "transmute", "trigger", "unbind", "unleash"
+];
+
+equipWords = [
+  "acquire", "add", "collect", "equip", "gather", "grab", "hold", "keep", "loot", "obtain", "pick", "put", "receive", "retrieve", "stash", "snatch", "store", "take", "toss", "wear"
+];
+
+invWords = [
+  "bag", "backpack", "body", "case", "chest", "collection",  "container", "crates", "equipment", "hands", "hand", "holder", "holdings", "holster", "inventory", "items", "legs", "loot", "pack", "pocket", "pouch", "rucksack", "sack", "satchel", "storage", "supplies", "tote"
+];
+
+numWords = [
+  "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+  "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
+  "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
+  "hundred", "thousand", "million", "billion", "trillion"
+];
+
+titleWords = ["mr", "mrs", "ms", "dr", "prof", "captain", "sir", "lady", "officer", "detective", "colonel", "general", "lieutenant", "president", "governor", "mayor", "minister","ambassador", "director", "agent", "coach", "principal", "judge", "dean", "sister","brother", "father", "mother", "daughter", "son", "king", "queen", "prince", "princess","professor"];
+
+stopWords = [
+  // Pronouns
+  "I", "me", "my", "myself", "we", "our", "ours", "ourselves",
+  "you", "your", "yours", "yourself", "yourselves",
+  "he", "him", "his", "himself", "she", "her", "hers", "herself",
+  "it", "its", "itself", "they", "them", "their", "theirs", "themselves",
+
+  // Question Words
+  "what", "which", "who", "whom", "whose", "when", "where", "why", "how",
+
+  // Auxiliary & Modal Verbs
+  "am", "is", "are", "was", "were", "be", "been", "being",
+  "have", "has", "had", "having",
+  "do", "does", "did", "doing",
+  "can", "could", "will", "would", "shall", "should", "must", "might", "may",
+
+  // Negatives
+  "not", "no", "nor", "never", "none", "nothing", "nowhere", "neither",
+  "isn't", "aren't", "wasn't", "weren't", "hasn't", "haven't", "hadn't",
+  "doesn't", "don't", "didn't", "won't", "wouldn't", "shan't", "shouldn't",
+  "can't", "cannot", "couldn't", "mightn't", "mustn't", "needn't",
+
+  // Conjunctions & Prepositions
+  "and", "but", "or", "because", "as", "until", "while",
+  "of", "at", "by", "for", "with", "about", "against",
+  "between", "into", "through", "during", "before", "after",
+  "above", "below", "to", "from", "up", "down", "in", "out",
+  "on", "off", "over", "under", "onto", "upon", "around",
+
+  // Articles & Determiners
+  "a", "an", "the", "this", "that", "these", "those",
+  "some", "any", "each", "every", "either", "neither",
+  "such", "own", "other", "another", "both", "all", "several", "many", "most", "few", "since",
+
+  // Time-Related Words
+  "again", "further", "then", "once", "already", "soon", "later", "finally", "next",
+
+  // Place Words
+  "here", "there", "everywhere", "somewhere", "anywhere", "nowhere",
+
+  // Degree & Quantifier Words
+  "very", "too", "just", "only", "more", "less", "than", "enough", "almost",
+  "rather", "quite", "really", "such",
+
+  // Common Verbs & Adverbs
+  "try", "trying", "tries", "take", "takes", "taking",
+  "look", "looks", "looking",
+  "seem", "seems", "seemed", "appears", "appeared",
+  "go", "goes", "going", "gone",
+  "come", "comes", "coming",
+  "get", "gets", "getting", "got", "gotten",
+  "make", "makes", "making", "made",
+  "say", "says", "saying", "said", "heard",
+  "know", "knows", "knew", "stopping", "stops", "becomes",
+
+  // Game-Specific Terms
+  "skill", "ability", "executes", "existing",
+  "increases corruption", "consumes energy", "successfully",
+  "suddenly", "predictably", "efficiently", "cast"
+];
+
+healingActions = [
+  "heal", "recover", "restore", "regenerate", "revitalize", 
+  "rejuvenate", "mend", "bandage", "apply", "inject", "swallow", "absorb", "patch", "treat", "stitch","splint"
+];
+
+consumeWords = [
+  "drink", "eat", "consume", "inject", "swallow", "absorb", "devour", "ingest", "chew", "bite", "sip", "gulp"
+];
+
+// Light healing items (basic healing items)
+lightHealWords = [
+  "bandage", "herb", "potion", "water", "minor","salve","ointment","icepack","rinse","snack", "cooked","cook","cooking"
+];
+
+// Moderate healing items (more effective healing items)
+moderateHealWords = ["healing", "elixir", "tincture", "small", "bandage","magic","oil","food","meal","breakfast","lunch","dinner","delicious"
+];
+
+// Strong healing items (stronger healing items for larger wounds)
+strongHealWords = ["large", "larger", "strong", "big", "scroll", "balm", "alcohol", "cream"
+];
+
+// Intense healing items (used for serious injuries or magical healing)
+greatHealWords = ["superior", "life elixir", "antibacterial", "vitality", "greater","great","rare"
+];
+
+// Powerful healing items (used for critical injuries or to restore near full health)
+powerfulHealWords = ["immortality", "crystal", "revival", "divine", "surgery","enchanted","powerful","extremely","extreme","mystical","legendary"
+];
+
+enterWords = ["crawl", "drift", "enter", "fall", "get", "go", "head", "lay", "lie down", "make", "move", "nap", "prepare", "proceed", "slip", "sleep", "settle", "sink", "snuggle", "step", "surrender", "take", "turn in", "transition"];
+
+restingWords = ["catnap", "doze", "hibernate", "nap", "relax", "rest", "sleep", "slumber", "asleep"];
+
+lightRestWords = ["brief", "fleeting", "minor", "momentary", "passing", "quick", "relax", "short", "small", "tiny", "transient", "breath", "breathe", "breathing"];
+
+moderateRestWords = ["catnap", "doze", "light sleep", "nap", "power nap", "repose", "rest", "siesta", "snooze", "rest"];
+
+fullRestWords = ["deep", "deeply", "hibernation", "hibernate", "long", "prolonged", "rejuvenating", "sleep", "slumber", "sound", "uninterrupted"];
+
+dialoguePhrases = ["You say", "You tell", "You add", "You ask", "You reply", "You state", "You note", "You claim", "You remark", "You mutter", "You insist", "You whisper", "You mention", "You declare", "You respond", "You warn", "You said", "You see", "You hear"];
+
+realizePhrases = ["It becomes apparent", "It becomes clear that", "It clicks that", "You start to realize", "You come to realize", "You come to understand", "You feel that", "You grasp the fact that", "You notice", "You realize", "You recognize that", "You see that", "It dawns on you that"];
+
+becauseYouPhrases = ["because you", "since you", "as you", "given that you", "considering that you", "owing that you", "on account that you", "by virtue that you", "seeing as you", "thanks that you", "as a result that you", "in light that you", "for the reason that you", "in view that you", "due to the fact that you"
+];
+
+assumedWrongPhrases = ["assumed competence", "assumed preparation", "assumed you had on hand what you didn't", "didn't harness existent skills", "didn't harness existent talents", "didn't specify proficiency", "didn't specify reasonably", "expected the air to do something", "failed to secure necessary resources", "forgot to bring the right tools", "had a moment of inexperience", "missed key details", "neglected to prepare properly", "neglected proper planning", "overestimated your readiness", "rushed past your experience", "skipped on clarity", "skipped the resource", "underestimated the necessities", "underprepared", "weren't thorough enough", "were ill-equipped", "were not clear", "were too hasty"];
+
+
+slightlyWorseResults = ["the outcome was close, but mostly off the mark", "the outcome was mostly underwhelming", "the outcome was less than ideal", "the outcome was disappointing", "the outcome was not as good as anticipated", "the result didn't quite measure up", "the result fell short of expectations", "the result was below the expected level", "the result was not quite what was hoped for", "the performance didn't meet expectations", "the performance was below expectations", "the performance was shy of expectations", "the performance was quite subpar", "the final outcome was mildly disappointing", "the final result was a bit of a letdown"];
+
+attackWords = ["attack", "ambush", "bash", "batter", "bite", "bludgeon", "chop", "claw", "cleave", "club", "crush", "flail", "gouge", "impale", "jab", "kick", "lunge", "maul", "pound", "pummel", "pierce", "punch", "ram", "rend", "shred", "slash", "slam", "slice", "smash", "stab", "strike", "swipe", "swing", "smack", "thrust", "whack", "wreck"];
+
+rangedattackWords = ["fire","loose", "launch", "shoot"];
+
+
+const skillDescriptions = {
+  // Tech
+  "debug": "Diagnose and fix technical issues in machines or software.",
+  "hack": "Bypass security systems and gain unauthorized access.",
+  "defragment": "Optimize and repair digital systems.",
+  "reboot": "Restart a device or system to restore functionality.",
+  "program": "Write or modify code to control machines.",
+  "encrypt": "Secure data against unauthorized access.",
+  "decrypt": "Decode encrypted information.",
+  "scan": "Analyze surroundings or systems for information.",
+  // Engineer
+  "repair": "Fix broken equipment, vehicles, or structures.",
+  "calibrate": "Adjust devices for optimal performance.",
+  "maintain": "Keep machinery and systems running smoothly.",
+  "upgrade": "Improve the capabilities of equipment.",
+  "disassemble": "Take apart devices for repair or salvage.",
+  "build": "Construct new devices or structures.",
+  "refit": "Modify equipment for new purposes.",
+  // Medic
+  "heal": "Restore health to yourself or others.",
+  "revive": "Bring someone back from unconsciousness or near death.",
+  "detox": "Remove toxins or poisons from the body.",
+  "diagnose": "Identify illnesses or injuries.",
+  // Psyker Spells
+  "telepathy": "Read or communicate thoughts mentally.",
+  "telekinesis": "Move objects with your mind.",
+  "pyrokinesis": "Create or control fire using psychic power.",
+  "psychic shield": "Protect yourself or others from psychic attacks.",
+  "mind control": "Influence or dominate another's thoughts or actions.",
+  "clairvoyance": "Perceive distant events or foresee the future.",
+  "psychic blast": "Attack with a burst of psychic energy.",
+  "aura reading": "Sense the energy fields of living beings.",
+  "psychic healing": "Restore mental or physical health with psychic power.",
+  "psychic barrier": "Block psychic intrusion or attacks.",
+  "psychic projection": "Send your mind or spirit outside your body.",
+  "teleportation": "Instantly move yourself to another location.",
+  "psychic scream": "Overwhelm minds with a psychic shout.",
+  "psychic manipulation": "Alter thoughts, emotions, or perceptions.",
+  "psychic ward": "Protect an area or person from psychic harm."
+};
+
+const skillTriggerMap = {
+  // Tech skills
+  "debug": ["debug", "diagnose", "troubleshoot"],
+  "hack": ["hack", "bypass", "override", "crack", "breach"],
+  "defragment": ["defragment", "optimize"],
+  "reboot": ["reboot", "restart", "reset"],
+  "program": ["code", "program", "reprogram", "script"],
+  "encrypt": ["encrypt", "secure"],
+  "decrypt": ["decrypt", "decode", "unscramble"],
+  "scan": ["diagnostic", "scan", "analyze"],
+
+  // Engineer skills
+  "repair": ["repair", "fix", "mend", "patch", "refurbish", "restore", "rebuild", "reconstruct"],
+  "calibrate": ["calibrate", "tune", "adjust"],
+  "maintain": ["maintain", "service"],
+  "upgrade": ["upgrade", "improve", "enhance"],
+  "disassemble": ["disassemble", "take apart", "dismantle", "deconstruct", "break down"],
+  "build": ["build", "erect", "construct", "assemble", "put together", "fabricate"],
+  "refit": ["refit", "retrofit", "retool", "adapt", "modify", "alter", "reconfigure"],
+
+  // Medic skills
+  "heal": ["heal", "treat", "bandage", "suture", "stitch", "inject", "medicate", "apply salve", "first aid", "triage", "diagnose", "disinfect", "clean wound", "stop bleeding"],
+  "revive": ["revive", "resuscitate", "restore", "bring back", "CPR", "restart heart", "shock", "defibrillate"],
+  "detox": ["detox", "purge", "neutralize", "antidote", "counteract", "flush toxins", "cleanse"],
+  "diagnose": ["diagnose", "identify illness", "analyze symptoms", "check vitals", "examine", "inspect patient"],
+
+  // Psyker spells (example triggers, customize as needed)
+  "telepathy": ["telepathy", "read mind", "mental link", "thoughts", "psychic communication"],
+  "telekinesis": ["telekinesis", "move object", "levitate", "psychic force", "lift with mind"],
+  "pyrokinesis": ["pyrokinesis", "ignite", "burn", "set fire", "flame", "heat with mind"],
+  "psychic shield": ["psychic shield", "block mind", "mental barrier", "protect thoughts", "defend psyche"],
+  "mind control": ["mind control", "dominate", "compel", "influence", "override will"],
+  "clairvoyance": ["clairvoyance", "see future", "predict", "premonition", "psychic vision"],
+  "psychic blast": ["psychic blast", "mental attack", "brain shock", "psionic strike"],
+  "aura reading": ["aura reading", "sense aura", "detect energy", "read energy field"],
+  "psychic healing": ["psychic healing", "heal with mind", "restore psyche", "mental recovery"],
+  "psychic barrier": ["psychic barrier", "block psychic", "defend mind", "shield thoughts"],
+  "psychic projection": ["psychic projection", "astral project", "out of body", "send mind"],
+  "teleportation": ["teleportation", "instant travel", "blink", "warp", "shift location"],
+  "psychic scream": ["psychic scream", "mental scream", "psionic shout", "overwhelm mind"],
+  "psychic manipulation": ["psychic manipulation", "alter mind", "change thoughts", "influence psyche"],
+  "psychic ward": ["psychic ward", "protect from psychic", "ward mind", "block psionics"]
+};
+
+// Health status arrays
+
+healthFeelsHalfway = ["your health feels average", "your health is at a mid-point", "your health feels balanced", "you're in fair health", "your health is in the middle", "your health is at an even keel", "your health feels stable but moderate", "you're halfway to full strength", "your health is neither strong nor weak", "your health is moderate", "you're at half strength", "your health stands at the halfway mark", "your vitality is halfway depleted", "you're in a neutral state of health", "your health is balanced at half", "you're halfway from full vigor", "your health is split right down the middle", "you're not in great shape, but not at rock bottom", "your body feels neither strong nor weak, just halfway there", "you're at the middle of your strength"]
+
+healthVeryLow = ["your health is hanging by a few threads", "your vitality is on the brink of collapse", "you're hanging on by a thread", "your health is barely holding together", "your body feels like it's on its last leg", "you're one step away from falling", "your strength is nearly depleted", "you're hanging in there by sheer will", "you're on the edge of total exhaustion", "your health is almost gone, just a breath away from falling", "you're teetering on the edge of unconsciousness", "your body is at its breaking point", "you're seconds away from complete collapse", "your health is almost a memory"];
+
+healthDeathArray = [
+  "the world slows as your life ends, and everything goes dark.",
+  "time seems to freeze as your life slips away, leaving you in the void of death.",
+  "everything blurs as your life gives out, and you fade into nothing.",
+  "the world spins around you as your body gives in, you have died.",
+  "everything goes silent as you collaspe and die.",
+  "the world grows distant as your health drains, and death takes you.",
+  "your vision dims and the world around you disappears as death claims you.",
+  "the air grows heavy, and with one final breath, you fade from existence.",
+  "the ground fades beneath you as your body finally succumbs to death.",
+  "the world keeps turning as you fall into the abyss of your own demise.",
+  "your body gives way, and with a final breath, death embraces you.",
+  "the world fades into stillness, and with it, your life slips away.",
+  "your final moments pass as you embrace death.",
+  "you surrender to death as your health has fallen to zero."
+];
+
+ halfEnergyArray = [
+  "you feel drained, like only half of your energy remains.",
+  "your energy is running half of what it should be.",
+  "you feel a bit sluggish, with just half the energy you normally have.",
+  "your vitality feels halved, leaving you feeling sluggish.",
+  "you must be running on a hungry stomach, since you feel like you have half your usual energy.",
+  "you feel like you've only got half the energy left to keep going.",
+  "your energy reserves are half spent, making everything feel slightly more difficult.",
+  "you are craving a nap and its affecting you.",
+  "you're craving an energy drink considering you're half spent",
+  "you feel half as lively.",
+  "your body feels a bit tired, like it’s only working with half the energy.",
+  "you feel halfway exhausted and could use a meal."
+];
+
+exhaustedArray = [
+  "you feel almost drained.",
+  "your energy is nearly depleted.",
+  "you feel close to utterly spent.",
+  "you feel almost completely wiped out.",
+  "you feel like you can't go on any longer.",
+  "your body is fatigued, every movement is a struggle.",
+  "you feel utterly exhausted, as if you've run out of fuel.",
+  "your energy is an inch away from being used up.",
+  "you're so tired, every muscle aches.",
+  "you feel like you're at the end of your rope and need rest."
+];
+
+exhaustionSleepArray = [
+  "you find the need for a place for deep sleep as your body succumbs to its weariness.",
+  "you urgently need to crawl into slumber, the exhaustion is too much to bear.",
+  "you are about to drift away into unconscious sleep as fatigue takes hold.",
+  "you need to get sleep, your body is about to let go of its fight with exhaustion.",
+  "you need to go under rest, the overwhelming tiredness is pulling you.",
+  "you need to head into sleep, your mind is shutting down as exhaustion claims you.",
+  "you need to lay down, the exhaustion almost pulling you into a deep, much-needed rest.",
+  "you require deliberate action to lie down, and wish for sleep to come quickly, your body finally giving in.",
+  "you mind needs you to make your way into sleep, the exhaustion is too much to resist.",
+  "you need to purposely move into slumber, your mind surrendering to the weight of your fatigue.",
+  "you urgently require deliberate sleep, the fatigue finally overtaking you.",
+  "you need to settle into sleep, your body letting go of the day’s exhaustion.",
+  "you need to sink into sleep, the weight of your weariness dragging you under.",
+  "you need to step into slumber, your exhaustion becoming too much to fight.",
+  "you need to surrender to sleep, the exhaustion finally winning over your body.",
+  "you need to take a deep breath and fall into sleep, your body letting go.",
+  "you need to turn in immediately, and sleep will claim you effortlessly.",
+  "you need to transition into slumber, else your body will fail you."
+];
+
+bodyParts = [
+  // Standard humanoid body parts
+  "abdomen", "achilles tendon", "ankle", "arm", "arteries", "back", "biceps", "bladder", "buttocks", "body",
+  "calf", "cheek", "chest", "chin", "collarbone", "deltoid", "diaphragm", "ear", "elbow", "esophagus",
+  "eyebrow", "eyelid", "face", "fingers", "foot", "flesh", "forearm", "forehead", "gums", "gut", "groin", "hamstring",
+  "hand", "head", "heart", "heel", "hip", "intestines", "jaw", "kidney", "knee", "knuckles", "leg",
+  "lips", "liver", "lungs", "lung", "lower back", "nape", "neck", "nose", "palm", "pancreas", "pelvis",
+  "quadriceps", "ribs", "scapula", "shin", "shinbone", "shoulder", "side", "skull", "solar plexus",
+  "spine", "spleen", "stomach", "sternum", "tailbone", "teeth", "temple", "thigh", "throat", "thumb",
+  "toes", "triceps", "upper back", "veins", "waist", "wrist",
+
+  // Fantasy/Sci-Fi Races
+  "antlers", "barb", "beak", "carapace", "chitin", "claw", "crest", "eye stalk", "fang", "feathers",
+  "fin", "frill", "gill", "horn", "hoof", "mandible", "membrane", "proboscis", "scales", "shell",
+  "snout", "spikes", "stinger", "talon", "tail", "thorax", "trunk", "tusk", "whiskers", "wing"
+];
+
+PsykerSpells = ["telepathy", "telekinesis", "pyrokinesis", "psychic shield", "mind control", 
+  "clairvoyance", "psychic blast", "aura reading", "psychic healing", "psychic barrier", "psychic projection", 
+  "teleportation", "psychic scream", "psychic manipulation", "psychic ward" ];
+
+TechSkills = [
+  "debug", "hack", "defragment", "reboot", "code", "encrypt", "decrypt", "scan", "analyze", 
+];
+
+EngineerSkills = [
+  "repair", "calibrate", "maintain", "upgrade", "assemble", 
+  "disassemble", "construct", "deconstruct", "build", "dismantle", "refurbish", "refit", 
+  "reconfigure", "rebuild", "reconstruct", "reengineer", "retool"
+];
+
+MedicSkills = [
+  "heal", "revive", "detox", "diagnose", "bandage", "suture", "first aid", "triage", "disinfect", "inject", "medicate"
+];
+
+
+
+// --- Persistent State Initializations ---
+// Place at line 1685, right after constants and before any functions.
+
+// Player Modifiers
+state.playerModifiers = state.playerModifiers || {
+  lvlMod: 0, hpMod: 0, cpMod: 0, epMod: 0, atkMod: 0, ratkMod: 0, defMod: 0, spdMod: 0, lckMod: 0, intlMod: 0
+};
+
+// Player Stats
+state.playerStats = state.playerStats || {
+  lvl: 0, hp: 0, cp: 0, ep: 0, atk: 0, ratk: 0, def: 0, spd: 0, lck: 0, intl: 0,
+  maxLvl: 0, maxHp: 0, maxCp: 0, maxEp: 0, maxAtk: 0, maxRatk: 0, maxDef: 0, maxSpd: 0, maxLck: 0, maxIntl: 0
+};
+state.playerStats.classLevelUps = state.playerStats.classLevelUps || 0;
+
+// Skill Classes
+state.skillClasses = state.skillClasses || {
+  psyker:   { lvl: 1 },
+  tech:     { lvl: 1 },
+  engineer: { lvl: 1 },
+  medic:    { lvl: 1 }
+};
+state.skillClasses.tech.levelUps = state.skillClasses.tech.levelUps || 0;
+state.skillClasses.engineer.levelUps = state.skillClasses.engineer.levelUps || 0;
+state.skillClasses.medic.levelUps = state.skillClasses.medic.levelUps || 0;
+state.skillClasses.psyker.levelUps = state.skillClasses.psyker.levelUps || 0;
+
+// Player Inventory
+state.playerInv = state.playerInv || { item: [], amt: [] };
+
+// Player Skills
+state.playerSkills = state.playerSkills || { name: [], lvl: [], cost: [] };
+state.playerSkills.levelUps = state.playerSkills.levelUps || state.playerSkills.name.map(() => 0);
+
+// Psyker Spells
+state.psykerSpells = state.psykerSpells || { name: [], lvl: [], cost: [] };
+state.psykerSpells.levelUps = state.psykerSpells.levelUps || state.psykerSpells.name.map(() => 0);
+
+// Weapon Modifiers
+state.weaponModifiers = state.weaponModifiers || { ammoMod: 0, condMod: 0 };
+
+// --- Skill Execution Globals ---
+let skillIndex = 0;
+let fullSkillMatch = false;
+let skillCheck = [false, false, 0];
+
+// --- End of Persistent State Initializations ---
+
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+/// ACS STANDARD FUNCTIONS
+//Input /start unlocks the script else script naturally locked
+function unlockScript(text){ 
+  // AID already starts scenarios; do nothing here.
+  return text;
+}
+
+// Detect input command /end to lock script
+function lockScript(text){ 
+  if (state.startScript === true && /\/end\b/i.test(text)) {
+    state.startScript = false;
+    text = text + "\n 🔒 ACS Script Locked!";
+  }
+  return text;
+}
+
+//detect /help and display help
+function helpCommandInput_ACS(text){
+  if(text.includes("/help stats")){
+    state.commandCenter_ACS = 
+    `
+    <<
+    📊 Player Stats Guide
+
+    - 📥 Type "Player Stats" in the Story Cards to view your current stats.
+    - 🔄 Stats auto-update based on natural player input and context.
+    - ✏️ To manually adjust a stat, use the format: STAT: x/maxX.
+    - 🗒️ Stat change logs appear in the notes of the Player Stats Story Card.
+
+    🧠 Gameplay Mechanics
+
+    - Psyker spells add corruption, Corruption regenerates every turn.
+    - ⚡ Energy decreases every turn.
+    - ⚠️ Low Health or Energy leads to consequences.
+    - 📈 Skills used in actions gain level. Levelled skills increase class level, class levels increase player level.
+    - 🆙 Leveling up increases all max stats.
+
+    📐 Scaling & Calculations
+
+    - 🧠 Max Corruption scales with INTL.
+    >>
+    `
+ 
+  }
+  else if(text.includes("/help skills")){
+    state.commandCenter_ACS = 
+    `
+    <<
+    🎯 Skills System Guide
+
+    
+    - 📝 Edit skills in the Story Card using the format: "Skill Name (Lvl)".
+    >>
+    `
+  }
+  
+  else if (text.includes("/help inventory")) {
+  state.commandCenter_ACS = 
+  `
+  <<
+  📦 Inventory Help
+
+  - Store items by typing: "You [store words]... [item name]... [inventory words]."
+  - Include a number to specify quantity. Ex: "You put 2 apples in your bag."
+  - Edit your inventory in the story card using the format: "Item Name (Amt)".
+  - Weapons are automatically equipped when stored if no weapon is currently equipped.
+  - To use an item, type: "You [use words]... [item name]... [inventory words]."
+  - To drop an item, type: "You [drop words]... [item name]... [inventory words]."
+  >>
+    `
+
+  }
+  else if (text.includes("/help actions")) {
+    state.commandCenter_ACS = 
+    `
+    <<
+    🎬 Action System Help
+
+    - Item, and skill usage requires name matching (exact or partial).
+    - Vague actions are taken literally. Example: "You slice it" (slice with what?).
+    - Cast skills: "You [cast verb] [skill name]."
+    - Rest to recover HP, CP, and energy:
+      • Light rest, moderate rest, full rest yield different recovery levels.
+      • Format: "You [enter words] [sleep words]."
+    - Use consumables for healing/energy. Example: "You drink a Mythical potion."
+    - Use skills on yourself to heal. Format: "You [heal word] [yourself] [skill]."
+    - ATK and RNG attack increase your chances of a successful hit.
+    - Weapons
+    - Placing a weapon into your inventory allows you to equip it. Equip a weapon by drawing it as in "I draw my laspistol" 
+    - Once a weapon is equipped you do not need to specify which weapon you are attacking with your attacks will use ammunition from the equipped weapon's story card.
+    - Unequip a weapon by returning it to your holster as in "I return my laspistol to it's holster"
+    - Picking up a weapon automatically adds it to your inventory and equips it if no weapon is currently equipped.
+    - You may toggle fire modes on appropriate weapons by saying "I select" or "I toggle burst fire" or "overcharge". Burst fire fires three rounds, overcharge consumes all remaining ammunition
+    - You may fire multiple times in one action by saying "I fire twice" or "I fire three times etc"
+    - Laser weapons reload with power cells. 1 power cell = full weapon charge
+    >>
+    `
+  }
+  else if (text.includes("/help keywords")) {
+    state.commandCenter_ACS = 
+    `
+    <<
+    
+    🔎 castWords:\n${castWords}
+    🔎 equipWords:\n${equipWords}
+    🔎 invWords:\n${invWords}
+    🔎 attackWords:\n${attackWords}
+    🔎 consumeWords:\n${consumeWords}
+    🔎 restingWords:\n${restingWords}
+    🔎 rangedattackWords:\n${rangedattackWords}
+    >>
+    `
+  }
+  else if (text.includes("/help")) {
+    state.commandCenter_ACS = 
+    `
+    <<
+    Adventure Combat System RPG SCRIPT BY Aassmodeuss
+    🛠️ Script Commands
+
+    - /start — Starts the script
+    - /end — Stops the script
+    - /help stats — Stat mechanics and usage
+    - /help skills — Skill casting and upgrades
+    - /help inventory — Storing and managing items
+    - /help actions — Combat, healing, resting, and usage behaviors
+    - /help keywords — Command triggers
+    - /reset — Resets game over state allowing you to continue your playthrough after modirying your stats.
+    >>
+    `
+  }
+   else if (text.includes("/reset")) {
+    resetGameOverState();
+    state.msgHolder += "Game over state reset. You may continue your adventure!\n";
+  }
+}
+
+function helpCommandOutput_ACS(text){
+  if(state.commandCenter_ACS){
+    text = state.commandCenter_ACS;
+  }
+  delete state.commandCenter_ACS
+  return text;
+}
+
+// Increment turn counter at end of onOutput
+function turnCounter(){
+  state.turnCount += 1;
+  log("state.turnCount: " + state.turnCount);
+}
+
+// Remove script texts to clean AI context
+function removeAngleText(text) {
+  return text.replace(/<<[\s\S]*?>>/g, '');
+}
+
+// Function to capitalize first letter of a string
+function capitalizeFirst(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+///Function to return all indices of one target in array 
+function indicesOf(arr,target){  
+    let indices = [];
+    for (let i = 0; i < arr.length; i++) {
+        if (arr[i] === target) {
+            // Found the word, store its index
+            indices.push(i);
+        }
+    }
+
+    if(indices.length == 0){
+        return null;
+    }
+    else{
+        return indices; //arr
+    }
+    
+}
+/**
+ * Injects a story card's contents into the context only if not already present.
+ * @param {string} cardTitle - The title of the story card to inject.
+ * @param {string} context - The current context string.
+ * @returns {string} - The new context string with the card's data prepended if not already present.
+ */
+function injectStoryCardToContext(cardTitle, context) {
+  const sc = storyCards.find(sc => sc.title === cardTitle);
+  if (!sc) return context; // Card not found
+
+  // Prepare the card's text block
+  let cardText = "";
+  if (sc.description && sc.description.trim() !== "") {
+    cardText += `<<${cardTitle} Description>>\n${sc.description}\n`;
+  }
+  if (sc.entry && sc.entry.trim() !== "") {
+    cardText += `<<${cardTitle}>>\n${sc.entry}\n`;
+  }
+
+  // Check if cardText (ignoring whitespace) is already in context
+  const normalizedContext = context.replace(/\s+/g, ' ').toLowerCase();
+  const normalizedCardText = cardText.replace(/\s+/g, ' ').toLowerCase();
+
+  if (normalizedContext.includes(normalizedCardText.trim())) {
+    return context; // Already present, skip adding
+  }
+
+  // Otherwise, prepend cardText
+  return cardText + context;
+}
+
+
+
+/// Returns true if a "you" word appears within N words before or after the match index
+function isPlayerContext(text, matchIndex, matchLength, windowSize = 10) {
+  const words = text.split(/\s+/);
+  // Find the word index of the match
+  let charCount = 0, matchWordIndex = -1;
+  for (let i = 0; i < words.length; i++) {
+    charCount += words[i].length + 1; // +1 for space
+    if (charCount > matchIndex) {
+      matchWordIndex = i;
+      break;
+    }
+  }
+  if (matchWordIndex === -1) return false;
+  // Check window before and after
+  const start = Math.max(0, matchWordIndex - windowSize);
+  const end = Math.min(words.length, matchWordIndex + windowSize + 1);
+  for (let i = start; i < end; i++) {
+    if (youWordsRegex.test(words[i])) return true;
+  }
+  // Direct check: "your" appears within 2 words before the match
+  if (matchWordIndex >= 1 && youWordsRegex.test(words[matchWordIndex - 1])) return true;
+  if (matchWordIndex >= 2 && youWordsRegex.test(words[matchWordIndex - 2])) return true;
+  return false;
+}
+
+//With a words arr and arr of targets, find all indices for each target in word arr and put them together in one arr
+function indicesOfTargets(wordsArr,targetWordsArr){
+  allTargetsIndicesArr = [];
+
+  //Loop through each target word and store their indices from words arr in an array
+  targetWordsArr.forEach(word => {
+    //unused target words return null so filter them out of index holder
+    if(indicesOf(wordsArr,word)){
+      //indicesOf returns an array, alltargetindices becomes an array of arrays so concat them
+      allTargetsIndicesArr = allTargetsIndicesArr.concat(indicesOf(wordsArr,word));
+      allTargetsIndicesArr.sort((a, b) => a - b);
+    }
+  });
+
+  //if no indices found return null
+  if(allTargetsIndicesArr.length <= 0){
+    return null;
+  }
+
+  return allTargetsIndicesArr;
+}
+
+//Input a string and remove punctuation
+function removeSpecificPunctuation(str) {
+  return str.replace(/[.><,!?;:"()\n]/g, " ");
+}
+
+//Return true or false for first letter capitalized
+function isFirstLetterCapitalized(word) {
+  if (!word) return false;  // Return false for empty string
+  return word.charAt(0) === word.charAt(0).toUpperCase();
+}
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomFloat(min, max){
+  return Math.random() * (max - min) + min;
+}
+
+///A helper function to level up skills
+function levelUpSkill(skillIndex, skillType) {
+  // Level up the skill
+  state.playerSkills.levelUps[skillIndex] = (state.playerSkills.levelUps[skillIndex] || 0) + 1;
+
+  // Count total level-ups for this class
+  let skillArray;
+  if (skillType === "tech") skillArray = TechSkills;
+  else if (skillType === "engineer") skillArray = EngineerSkills;
+  else if (skillType === "medic") skillArray = MedicSkills;
+  else return;
+
+  let totalClassSkillLevelUps = state.playerSkills.name.reduce((sum, skill, idx) => {
+    return skillArray.includes(skill) ? sum + state.playerSkills.levelUps[idx] : sum;
+  }, 0);
+
+  if (totalClassSkillLevelUps >= 10) {
+    levelUpSkillClass(skillType);
+    // Reset all skill level-up counters for this class
+    state.playerSkills.name.forEach((skill, idx) => {
+      if (skillArray.includes(skill)) state.playerSkills.levelUps[idx] = 0;
+    });
+  }
+
+  storeSkillsToSC();
+}
+
+///A helper function to level up a skill class
+function levelUpSkillClass(classKey) {
+  const playerLvl = state.playerStats.maxLvl;
+  const maxClassLvl = playerLvl * 2;
+  let skillClass = state.skillClasses[classKey];
+
+  if (skillClass.lvl < maxClassLvl) {
+    skillClass.lvl++;
+    skillClass.levelUps++;
+    state.msgHolder += `${capitalizeFirst(classKey)} class leveled up to ${skillClass.lvl}!\n`;
+  } else {
+    skillClass.lvl = maxClassLvl;
+    state.msgHolder += `${capitalizeFirst(classKey)} class is capped at ${maxClassLvl} (twice your player level).\n`;
+  }
+
+  // Check if player should level up
+  checkPlayerLevelUp();
+  storeStatsToSC();
+}
+
+///A helper function to check if player should level up
+function checkPlayerLevelUp() {
+  let totalClassLevelUps =
+    state.skillClasses.tech.levelUps +
+    state.skillClasses.engineer.levelUps +
+    state.skillClasses.medic.levelUps +
+    state.skillClasses.psyker.levelUps;
+
+  if (totalClassLevelUps >= 10) {
+    state.playerStats.maxLvl++;
+    state.playerStats.classLevelUps++;
+    state.msgHolder += `Player leveled up to ${state.playerStats.maxLvl}!\n`;
+
+    // Reset all class level-up counters
+    state.skillClasses.tech.levelUps = 0;
+    state.skillClasses.engineer.levelUps = 0;
+    state.skillClasses.medic.levelUps = 0;
+    state.skillClasses.psyker.levelUps = 0;
+
+    // Increase all max stats (as in your statUp logic)
+    maxStatKeys.forEach((key) => {
+      if (key !== 'maxLvl' && key !== 'maxExp') {
+        state.playerStats[key] += 5;
+        state.playerStats[key] = Math.round(state.playerStats[key]*100)/100;
+      }
+    });
+
+    storeStatsToSC();
+  }
+}
+
+///helper function to level Psyker spells
+function levelUpPsykerSpell(spellIndex) {
+  // Increment the spell's level-up counter
+  state.psykerSpells.levelUps[spellIndex] = (state.psykerSpells.levelUps[spellIndex] || 0) + 1;
+
+  // Count total level-ups for all Psyker spells
+  let totalPsykerSkillLevelUps = state.psykerSpells.levelUps.reduce((sum, val) => sum + val, 0);
+
+  if (totalPsykerSkillLevelUps >= 10) {
+    levelUpSkillClass("psyker");
+    // Reset all Psyker spell level-up counters
+    state.psykerSpells.levelUps = state.psykerSpells.levelUps.map(() => 0);
+  }
+
+  storePsykerSpellsToSC();
+}
+
+
+// Check for targets in text and split text string into words arr if there are. Replace all target words with first target word if unlocking is true
+function findTargetsThenSplit(text, targetWordsArr, wordsArrHolder, unlocking) {
+  if (text == null) return null;
+
+  yesSplit = false
+
+  // Remove punctuation first to standardize text processing
+  cleanText = removeSpecificPunctuation(text); //str
+
+  // loop through target words and check if text has target
+  targetWordsArr.forEach(target => {
+    targetRegex = new RegExp(`\\b${target}\\b`, "gi");
+    
+    // If text has target, set yessplit true
+    if(targetRegex.test(cleanText)){
+      // Optional replace large target words with first target word
+      if (unlocking === true && target.split(" ").length > 1) {
+        cleanText = cleanText.replace(targetRegex, targetWordsArr[0]);
+      }
+
+      yesSplit = true;
+    }
+  });
+  //log("cleanText postregex: " + cleanText);
+  //log("yesSplit: " + yesSplit);
+
+  // Split text if target was found
+  if (yesSplit){
+    wordsArrHolder = cleanText.split(/\s+/).filter(word => word.trim() !== "");
+    //console.log("wordsArrHolder: ", wordsArrHolder);
+    return wordsArrHolder;
+  }
+  else{
+    return null;
+  }
+
+}
+
+//Give an arr of targets and a string, clean text and check if string has a target
+function cleanStringCheckForTargets(targetWordsArr, text) {
+  if (text == null) {return false};
+
+ let wordsArr = text.replace(/[.,!?]/g, '').replace(/\s+/g, ' ').trim().split(' ');
+const numberWordsRegex = /^(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)$/i;
+if (numberWordsRegex.test(wordsArr[0])) {
+  wordsArr[0] = wordsToNumber(wordsArr[0]).trim();
+}
+let cleanText = wordsArr.join(' ');
+
+  // Loop through target words
+  for (let target of targetWordsArr) {
+    let targetRegex = new RegExp(`\\b${target}\\b`, "gi");
+    //log(target);
+
+    // Check if target is found in the text
+    if (targetRegex.test(cleanText)) {
+      return true; // Immediately return true if a match is found
+    }
+  }
+
+  return false; // Return false if no matches are found
+}
+
+//Given a words arr, checks if there is a "you" (player context) a num specified before target indicesarr
+function checkYouBeforeIndicesArr(wordsArr, indicesArr, numWordsBefore) {
+  for (let i = 0; i < indicesArr.length; i++) {
+    const currentIndex = indicesArr[i];
+    // Store words from current target index up to specified indices before them without going out of bounds into a holder
+    let prevWordsHolder = wordsArr.slice(Math.max(0, currentIndex - numWordsBefore), currentIndex);
+    // Use youWordsRegex for player context detection
+    if (prevWordsHolder.some(word => youWordsRegex.test(word))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+//Given a words arr, checks if there is a "and" a num specificed before target indicesarr
+function checkAndBeforeIndicesArr(wordsArr,indicesArr,numWordsBefore){
+  //loop through array of target indices
+  for(i = 0; i < indicesArr.length; i++){
+    //get the current target index
+    currentIndex = indicesArr[i];
+
+    // Store words from current target index up to specified indices before them without going out of bounds into a holder
+    let prevWordsHolder = wordsArr.slice(Math.max(0, currentIndex - numWordsBefore), currentIndex);
+
+    //Check in holder containing words before current target index if it has "and"
+    if(prevWordsHolder.includes("and")){
+      return true;
+    }
+  }
+
+  return false;
+}
+
+//Counts how frequent words appear in text and decays less appeared words
+function mostFrequentOutputWords(text){
+  // Split text into words and clean
+  outText = removeSpecificPunctuation(text).split(" ");
+
+  // Include uppercase stop words
+  capitalStopWords = [];
+  capitalStopWords = stopWords.map(word => word.charAt(0).toUpperCase() + word.slice(1));
+
+  // Remove stop words and player context words using regex
+  outText = outText.filter(word => 
+    ![...stopWords, ...capitalStopWords].some(stopWord => stopWord === word) &&
+    !youWordsRegex.test(word)
+  );
+  
+  //Holders
+  state.freqWords = state.freqWords || [];
+  state.wordWeights = state.wordWeights || [];
+
+  //Push new words and weight to holders
+  outText.forEach(word => {
+    if(!state.freqWords.includes(word) && word != ""){
+      state.freqWords.push(word);
+      state.wordWeights.push(1);
+    }
+  });
+
+  //Words that appear again increment over time
+  state.freqWords.forEach((word,ii) => {
+    if(outText.includes(word)){
+      state.wordWeights[ii]++;
+    }
+    else{
+      //Decay factor for unused words
+      state.wordWeights[ii]--;
+    }
+  });
+
+  //Remove decayed words and weights from holders
+  state.freqWords = state.freqWords.filter((word, ii) => state.wordWeights[ii] >= 0);
+  state.wordWeights = state.wordWeights.filter((count) => count >= 0);
+
+}
+
+//sort two linked arrs and display each element together in console
+function sortTwoLinkedArrForConsole(arr1,arrToSort){
+  //Combine for console log debugging
+  combined = arr1.map((word, index) => [word,arrToSort[index]]);
+  // Sort the combined array based on the second element (arrToSort values)
+  combined.sort((a, b) => a[1] - b[1]);  // Sort by count (ascending)
+  // Extract sorted arr1 and arrToSort from the combined array
+  arr1 = combined.map(item => item[0]);
+  arrToSort = combined.map(item => item[1]);
+  arr1.forEach((word,ind)=>{
+    log(arr1[ind] + ": " + arrToSort[ind]);
+  })
+}
+
+// Check if any guest is distance after any home, and push weight into weightarr if true
+function isAfterIndex(guestIndices, homeIndices, minDis, maxDis, weightIfTrue, arrOfWeights) {
+  if(guestIndices && homeIndices){
+    guestIndices.forEach((g, index) => {
+      homeIndices.forEach((h, index2) => {
+        // Check if the guest element is after the home element within the given distance
+        if (g - h <= maxDis && g - h >= minDis) {
+          arrOfWeights[index] += weightIfTrue;
+        }
+      });
+    });
+  }
+}
+
+// Check if any guest is distance before any home, and push weight into weightarr if true
+function isBeforeIndex(guestIndices, homeIndices, minDis,maxDis, weightIfTrue, weightArr) {
+  if(guestIndices && homeIndices){
+    guestIndices.forEach((g, index) => {
+      homeIndices.forEach((h, index2) => {
+        // Check if the guest element is before the home element within the given distance
+        if (g - h >= -maxDis && g - h <= -minDis) {
+          weightArr[index] += weightIfTrue;
+        }
+      });
+    });
+  }
+}
+
+function findClosestNumberBefore(arr, index) {
+  for (let i = index - 1; i >= 0; i--) {
+    const match = arr[i].match(/(\d+(\.\d+)?)/); // match integer or decimal
+    if (match) {
+      return Number(match[1]);
+    }
+  }
+  return null; // no number found before index
+}
+
+function wordsToNumber(text) {
+  const smallNumbers = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
+    "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19
+  };
+
+  const tens = {
+    "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+    "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90
+  };
+
+  const multipliers = {
+    "hundred": 100,
+    "thousand": 1000,
+    "million": 1000000,
+    "billion": 1000000000
+  };
+
+  // Match possible number phrases like "two hundred and twenty-five"
+  const numberWordsRegex = new RegExp(
+    '\\b(?:(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|' +
+    'eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|' +
+    'twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|' +
+    'hundred|thousand|million|billion|trillion|[-])+\\s*)+\\b',
+    'gi'
+  );
+
+  // Process a number phrase like "one hundred twenty three"
+  function parseNumberPhrase(phrase) {
+    const words = phrase.toLowerCase().replace(/-/g, ' ').split(/\s+/);
+    let total = 0, current = 0;
+
+    for (let word of words) {
+      if (smallNumbers[word] != null) {
+        current += smallNumbers[word];
+      } else if (tens[word] != null) {
+        current += tens[word];
+      } else if (word === "hundred") {
+        current *= 100;
+      } else if (multipliers[word]) {
+        current *= multipliers[word];
+        total += current;
+        current = 0;
+      }
+    }
+
+
+    return total + current + " ";
+
+  }
+
+  // Replace all matching phrases with numeric values
+  return text.replace(numberWordsRegex, match => {
+    return parseNumberPhrase(match);
+  });
+}
+
+function getDigitIndices(wordsArray) {
+  const digitIndices = [];
+
+  for (let i = 0; i < wordsArray.length; i++) {
+    if (/^\d+$/.test(wordsArray[i])) {
+      digitIndices.push(i);
+    }
+  }
+
+  return digitIndices;
+}
+
+// --- Levenshtein Distance Helper ---
+function levenshtein(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1,
+                    matrix[i][j - 1] + 1,
+                    matrix[i - 1][j] + 1
+                );
+            }
+        }
+    }
+    return matrix[b.length][a.length];
+}
+
+// --- Fuzzy Inventory Item Matcher ---
+function findBestInventoryMatch(input, inventoryItems) {
+    input = input.toLowerCase().replace(/[^a-z0-9 ]/gi, '');
+    let inputTokens = input.split(/\s+/).filter(Boolean);
+
+    let bestScore = 0;
+    let bestItems = [];
+
+    // First, use token overlap
+    for (let item of inventoryItems) {
+        let itemTokens = item.toLowerCase().replace(/[^a-z0-9 ]/gi, '').split(/\s+/).filter(Boolean);
+        let overlap = inputTokens.filter(token => itemTokens.includes(token)).length;
+        if (overlap > bestScore) {
+            bestScore = overlap;
+            bestItems = [item];
+        } else if (overlap === bestScore && overlap > 0) {
+            bestItems.push(item);
+        }
+    }
+    // If only one best match, return it
+    if (bestItems.length === 1) return bestItems[0];
+    // If multiple, use Levenshtein distance as tie-breaker
+    if (bestItems.length > 1) {
+        let minDist = Infinity;
+        let best = bestItems[0];
+        for (let item of bestItems) {
+            let dist = levenshtein(input, item.toLowerCase());
+            if (dist < minDist) {
+                minDist = dist;
+                best = item;
+            }
+        }
+        return best;
+    }
+    // No match found
+    return null;
+}
+
+
+///////////////////////////START OF WEAPON EQUIP DETECTION///////////////////////////////////////
+  //Detects equip/unequip commands and updates the Equipped Weapon story card.
+  
+function detectWeaponEquip(text) {
+    // Normalize input for matching
+    let cleanText = text.toLowerCase();
+
+    // Get inventory items from Player Inventory story card
+    const invSC = storyCards.find(sc => sc.title === "Player Inventory");
+    let inventoryItems = [];
+    if (invSC && invSC.entry) {
+        let matches = invSC.entry.matchAll(/(.+?)\s*\(.*?(\d+(?:\.\d+)?).*?\)/g);
+        for (const match of matches) {
+            let itemName = match[1].replace(/\b(the|a|an|my|your)\b/gi, '').trim().toLowerCase();
+            inventoryItems.push(itemName);
+        }
+    }
+
+    // Get weapon names from weapon story cards
+    let weaponNames = getWeaponNamesFromStoryCards();
+
+    // Check for equip/unequip commands
+    let equipCmd = /(equip|draw|ready|wield|hold|unsheath|arm)\s+([\w\s\-']+)/i;
+    let unequipCmd = /(unequip|holster|put away|stow|sheath|disarm|return)\s+(?:my|your)?\s*([\w\s\-']+)?/i;
+
+    let equippedWeapon = retrieveEquippedWeaponFromSC();
+if (!equippedWeapon || typeof equippedWeapon !== "string" || equippedWeapon.trim() === "") {
+  // Handle the case where no weapon is equipped
+  equippedWeapon = null;
+}
+
+    // Handle unequip
+    if (unequipCmd.test(cleanText)) {
+        storeEquippedWeaponToSC("");
+        state.equippedWeapon = null;
+        state.msgHolder += `You put away your weapon.\n`;
+        return text;
+    }
+
+    // Handle equip
+    let equipMatch = cleanText.match(equipCmd);
+    if (equipMatch) {
+        let inputWeapon = equipMatch[2].trim().toLowerCase();
+        // Fuzzy match inventory item to weapon card
+        let bestMatch = findBestInventoryMatch(inputWeapon, inventoryItems.filter(item =>
+            weaponNames.some(w => item.includes(w) || w.includes(item))
+        ));
+        if (bestMatch) {
+            // Find the matching weapon card name
+            let matchedWeapon = weaponNames.find(w => bestMatch.includes(w) || w.includes(bestMatch));
+            if (matchedWeapon) {
+                storeEquippedWeaponToSC(matchedWeapon);
+                state.equippedWeapon = matchedWeapon;
+                state.msgHolder += `You equip your ${matchedWeapon}.\n`;
+                return text;
+            }
+        }
+         state.msgHolder += `You do not have that weapon in your inventory.\n`;
+        text += " You do not have that weapon in your inventory.";
+        return text;
+    }
+
+    return text;
+}
+
+///////////////////////////END OF WEAPON EQUIP DETECTION///////////////////////////////////////
+
+
+//Function to get plr race
+function getPlrRace(){
+  const plotEssentials = (state.memory && typeof state.memory.context === "string")
+    ? state.memory.context.toLowerCase()
+    : "";
+  
+  // Default race to human
+  let race = "human";
+
+  //Get plr race from PE
+  raceNames.forEach(name => {
+    if(plotEssentials.includes(name.toLowerCase() + " race")){
+      race = name.toLowerCase();
+    }
+  });
+
+  // Remove spaces in race name
+  race = race.replace(/\s+/g, '');
+
+  return race;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+const raceMods = {
+  human: {
+    lvlMod: 0,
+    hpMod: 0,
+    cpMod: 0,
+    epMod: 0,
+    atkMod: 0,
+    ratkMod: 0,
+    defMod: 0,
+    spdMod: 0,
+    lckMod: 0,
+    intlMod: 0
+  },
+  
+};
+
+modKeys = ["lvlMod", "hpMod", "cpMod", "epMod", "atkMod", "ratkMod", "defMod", "spdMod", "lckMod", "intlMod"];
+raceNames = ["Human"];
+statKeysForMod = ["lvl", "hp", "cp", "ep", "atk", "ratk", "def", "spd", "lck", "intl"];
+
+
+//CREATE new sc with player Modifiers if sc doesnt exist
+function createIfNoModifierSC(){
+  if (!storyCards.find(sc => sc.title === "Player Modifiers")) {
+    // If "Player Modifiers" card doesn't exist, create it
+    addStoryCard("Player Modifiers", "Blank", "Player Stats");
+
+    plrRace = getPlrRace();
+
+    // Fetch the "Player Modifiers" card
+    const modSC = storyCards.find(sc => sc.title === "Player Modifiers");
+    modSC.description = `Format for Modifying: Modifier: num\nModifiers influence your starting stats.\nYour race is ${capitalizeFirst(plrRace)}.`;
+
+    //Set player modifier values in SC based on their race
+    modKeys.forEach(key => {
+      state.playerModifiers[key] = raceMods[plrRace][key];
+    });
+
+    // Apply initial race mods to stats and display them to sc
+    statKeysForMod.forEach(key => {
+      // Modify normal stat
+      temp1 =  state.playerStats[key] * state.playerModifiers[key + "Mod"]/100;
+      state.playerStats[key] = state.playerStats[key] + temp1;
+      state.playerStats[key] = Math.round(state.playerStats[key] * 100) / 100;
+
+      // Modify max stats
+      maxKey = "max" + capitalizeFirst(key);
+      temp2 = state.playerStats[maxKey] * state.playerModifiers[key + "Mod"]/100;
+      state.playerStats[maxKey] = state.playerStats[maxKey] + temp2;
+      state.playerStats[maxKey] = Math.round(state.playerStats[maxKey] * 100) / 100;
+
+    });
+
+    storeStatsToSC();
+  }
+}
+
+//STORES and displays the modifiers to player in sc
+function storeModifiersToSC(){
+  //Format player modifiers holder for SC 
+  formatForSC = [];
+  
+  modKeys.forEach((key, index) => {
+    const modName = key.replace("Mod","").toUpperCase();  //ATK
+    const modFormatPart = `${modName} Modifier: ${state.playerModifiers[key]}%\n`; //ATK Modifier: 0%
+
+    //Holder to hold all formatted strings
+    formatForSC.push(modFormatPart);
+  });
+  //log(formatForSC);
+
+  // Fetch the "Player Modifiers" card
+   const modSC = storyCards.find(sc => sc.title === "Player Modifiers");
+  if (!modSC) {
+    log('Player Modifiers story card not found!');
+    return;
+  }
+
+  //Convert holder to string, clean commas, and finally store to sc entry
+  modSC.entry = String(formatForSC).replace(/,/g, '');
+
+  // Trim notes on char limit to prevent memory overfill
+  if (modSC.description.length > 3000) {
+    halfIndex = Math.floor(modSC.description.length / 2);
+    modSC.description = modSC.description.slice(0, halfIndex);
+
+    console.log("Trimming modSC description to prevent memory overload.");
+  }
+}
+
+//RETRIEVE data from sc and store to playerModifiers
+function retrieveModifiersFromSC(){
+  // Fetch the "Player Modifiers" card
+  const modSC = storyCards.find(sc => sc.title === "Player Modifiers");
+  if (!modSC) {
+    log('Player Modifiers story card not found!');
+    return;
+  }
+  // Retrieve and split sc entry into (modName, value) lines
+  const modEntries = (modSC.entry || "").split("\n"); //arr of strings
+
+  //Loop through each line of entry from the split and extract values
+  modEntries.forEach(entry => {
+      // Match and extract stat and max stat values using regex
+      const match = entry.trim().match(/^([A-Z]+)\s+Modifier:\s*(-?\d+(?:\.\d+)?)(?:%)?$/);
+      if (match) {
+        const modName = match[1].toLowerCase() + 'Mod';
+        const modValue = Number(match[2]);
+        state.playerModifiers[modName] = (modValue ?? state.playerModifiers[modName]);
+      }
+  });
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+
+maxStatKeys = ["maxLvl", "maxHp", "maxCp", "maxEp", "maxAtk", "maxRatk", "maxDef", "maxSpd", "maxLck", "maxIntl"];
+statKeys = ["lvl", "hp", "cp","ep", "atk", "ratk", "def", "spd", "lck", "intl"];
+
+
+//NOTE: Players stats will be stored in a sc. CREATE initial stats. RETRIEVE from or STORE to player stats: SC -> <- state.playerstats
+
+//Function to create new random player stats
+function newPlayerStats(){  
+  //Get a random max level
+  state.playerStats.maxLvl = randomInt(2,30);
+
+  //Loop through each maxstat, and set max stats equal to max level
+  maxStatKeys.forEach((mStat) => {
+    state.playerStats[mStat] = state.playerStats.maxLvl;
+  });
+  
+  //Give player random initialized stats capped by max level
+  statKeys.forEach((stat) => {
+    state.playerStats[stat] = randomInt(1,state.playerStats.maxLvl);
+  });
+  
+  // Stat scaling
+  state.playerStats.maxHp = state.playerStats.maxLvl * 2 + 20;
+  state.playerStats.maxEp = state.playerStats.maxLvl * 2 + 80;
+  state.playerStats.maxCp = (state.playerStats.maxLvl * 1.5) + (state.playerStats.intl * 2) + 80;
+
+  // Player starts at full health
+  state.playerStats.hp = state.playerStats.maxHp;
+  state.playerStats.ep = state.playerStats.maxEp;
+  
+
+}
+
+//CREATE new sc with random playerstats if sc doesnt exist
+function createIfNoStatSC(){
+  if (!storyCards.find(sc => sc.title === "Player Stats")) {
+    // If "Player Stats" card doesn't exist, create it
+    addStoryCard("Player Stats", "Blank", "Player Stats");
+
+    // Fetch the "Player Stats" card
+    const statSC = storyCards.find(sc => sc.title === "Player Stats");
+    statSC.description = "Format for Modifying: Stat: num/maxNum";
+
+    //Initialize and randomize new player stats
+    newPlayerStats();
+
+    storeStatsToSC();
+  }
+}
+
+// STORES and displays the stats to player in sc
+function storeStatsToSC(){
+  // Format player stats holder for SC 
+  formatForSC = [];
+  
+  maxStatKeys.forEach((key, index) => {
+    // Lvl storing exception
+    if (key == "maxLvl") {
+      statFormatPart = `LVL ${state.playerStats.maxLvl}\n`
+    }
+    else {
+      // Remove 'max' and capitalize. Ex: maxAtk -> ATK
+      statName = key.substring(3).toUpperCase();
+
+      // Formatted stat line. Ex: ATK: atk/maxAtk
+      statFormatPart = `${statName}: ${state.playerStats[statName.toLowerCase()]}/${state.playerStats[key]}\n`;
+    }
+
+    // Push to holder for holding all formatted strings
+    formatForSC.push(statFormatPart);
+  });
+  //log(formatForSC);
+
+  // Fetch the "Player Stats" card
+  const statSC = storyCards.find(sc => sc.title === "Player Stats");
+  if (!statSC) {
+    log('Player Stats story card not found!');
+    return;
+  }
+
+  // Convert holder to string, clean commas, and finally store to sc entry
+  statSC.entry = String(formatForSC).replace(/,/g, '');
+
+  // Trim notes on char limit to prevent memory overfill
+  if (statSC.description.length > 3000) {
+    halfIndex = Math.floor(statSC.description.length / 2);
+    statSC.description = statSC.description.slice(0, halfIndex);
+
+    console.log("Trimming statSC description to prevent memory overload.");
+  }
+}
+
+// RETRIEVE data from sc and store to playerstats
+function retrieveStatsFromSC(){
+  const statMappings = {
+    //lvl: 'maxLvl',
+    hp: 'maxHp',
+    cp: 'maxCp',
+    ep: 'maxEp',
+    atk: 'maxAtk',
+    ratk: 'maxRatk',
+    def: 'maxDef',
+    spd: 'maxSpd',
+    lck: 'maxLck',
+    intl: 'maxIntl',
+  };
+  
+  //Fetch SC
+  const statSC = storyCards.find(sc => sc.title === "Player Stats");
+  if (!statSC) {
+    log('Player Stats story card not found!');
+    return;
+  }
+
+  // Retrieve and split sc entry into array of stat lines
+  const statEntries = statSC.entry.split("\n"); //arr of strings
+
+  // Loop through each stat line in array and extract values
+  statEntries.forEach(entry => {
+    // Lvl retrieval exception
+    const lvlMatch = entry.trim().match(/^(?:LVL|LEVEL)\s*[:\-]?\s*(\d+)$/i);
+    if (lvlMatch) {
+      state.playerStats.maxLvl = Number(lvlMatch[1]);
+      return; // Skip lvl match when found
+    }
+    
+    // Match and extract (statname, stat, maxStat)
+    const match = entry.trim().match(/^([a-zA-Z]+)\s*:\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+    //log("stat sc match: " + match);
+
+    //Store value in holder
+    if (match) {
+      const statName = match[1].toLowerCase();  // stat name (Ex: 'atk')
+      const statValue = Number(match[2]);    // current stat value (Ex: '50')
+      const maxStatValue = Number(match[3]); // max stat value (Ex: '100')
+
+      // Finally store stat and max stat in the playerStats if name is valid
+      if (statMappings[statName]) { //Ex: statMappings[atk] = 'maxAtk'
+        //OR operator safeguards against null values    
+        state.playerStats[statName] = statValue ?? state.playerStats[statName];
+        state.playerStats[statMappings[statName]] = maxStatValue ?? state.playerStats[statMappings[statName]];
+      }
+    }
+  });
+
+  //log(state.playerStats);
+}
+
+// Function to increment the player's stats
+function statUp(statName,incAmt){
+  // Ensure incAmt is a number
+  if(typeof incAmt !== "number"){
+    incAmt = 0;
+  }
+  incAmt = Number(incAmt);
+  incAmt = Math.round(incAmt * 100) / 100;
+  log("incAmt: " + incAmt + " " + statName);
+
+  //Intialize incAmt trackers for logging
+  let preModIncAmt = incAmt;
+  let scaledIncAmt = incAmt;
+
+  //Race modifiers influence stat gains (apply ONCE)
+  const plrRace = getPlrRace();
+  let temp = incAmt * state.playerModifiers[statName+'Mod']/100;
+  //Multiply temp by negative to ensure modifiers dont modify oppositely when incAmt is negative
+  if(incAmt < 0){
+    temp = temp * -1;
+  }
+  incAmt = incAmt + temp;
+  incAmt = Math.round(incAmt * 100) / 100;
+  preModIncAmt = incAmt;
+  scaledIncAmt = incAmt;
+  log("Race modded incAmt: " + incAmt + " " + statName);
+
+  //Get maxstat string key Ex: maxATK
+  maxStatName = "max" + statName.charAt(0).toUpperCase() + statName.slice(1);
+  
+  //Save current stat
+  stat = state.playerStats[statName];
+  log("stat: " + stat);
+
+  // Exception: Extra hp,cp,ep shouldnt lvl up player, simply increment available value
+  if(statName == "hp" || statName == "cp" || statName == "ep"){
+    state.playerStats[statName] += incAmt;
+
+    //Only two decimal places
+    state.playerStats[statName] = Math.round(state.playerStats[statName] * 100) / 100;
+
+    // Only clamp hp and ep, allow cp (corruption) to exceed max for possession/game over logic
+  if ((statName === "hp" || statName === "ep") && state.playerStats[statName] > state.playerStats[maxStatName]) {
+      state.playerStats[statName] = state.playerStats[maxStatName];
+  }
+
+  // Prevent CP from falling below 0
+  if (statName === "cp" && state.playerStats.cp < 0) {
+      state.playerStats.cp = 0;
+  }
+
+  // --- Game Over if CP exceeds max ---
+    if (state.playerStats.cp > state.playerStats.maxCp) {
+    state.gameOver = true;
+    }
+  
+    // Fetch the "Player Stats" card and log stat changes in description
+    const statSC = storyCards.find(sc => sc.title === "Player Stats");
+
+    if (incAmt >= 0) { sign = "⬆️" }
+    if (incAmt < 0) { sign = "🔻" }
+
+    statSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]} (Modded: ${incAmt}, Raw: ${preModIncAmt})\n` + statSC.description;
+
+    state.msgHolder = state.msgHolder + `${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]}\n`;
+    }
+    else{
+    //Formula which decreases value of exp the higher your level and gets the new stat value after exp gain. (stat + incAmt*PercentReduction)
+    //New stat after exp scaling formula
+    newStat = stat + incAmt * (1.32 * Math.exp(-0.02 * stat));
+
+    // Get scaled incAmt for logging
+    scaledIncAmt = incAmt * (1.32 * Math.exp(-0.02 * stat));
+    scaledIncAmt = Math.round(scaledIncAmt*100)/100;
+    log("scaledIncAmt: " + scaledIncAmt);
+
+    // Two decimal places only
+    newStat = Math.round(newStat * 100) / 100;
+    log("newStat: " + newStat);
+    // todo: fix rounding at very high levels
+    // Update the player stat to its new stat
+    state.playerStats[statName] = newStat;
+
+
+    // Fix stat to not pass maxstat
+    if(state.playerStats[statName] > state.playerStats[maxStatName]){
+      state.playerStats[statName] = state.playerStats[maxStatName];
+    };
+
+    // Fetch the "Player Stats" card and log stat changes in description
+    const statSC = storyCards.find(sc => sc.title === "Player Stats");
+
+    if (incAmt >= 0) { sign = "⬆️" }
+    if (incAmt < 0) { sign = "🔻" }
+
+    statSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]} (Scaled: ${scaledIncAmt}, Modded: ${incAmt}, Raw: ${preModIncAmt})\n` + statSC.description;
+
+  }
+
+  storeStatsToSC(); 
+}
+
+function playerNaturalRegen(){
+  //Player regens only if alive
+  if(state.playerStats.hp > 0){
+    statUp("hp",1);
+    statUp("cp",-2);
+
+    //Player loses available energy only
+    if(state.playerStats.ep > 0){
+      statUp("ep",-1 * randomFloat(0,1));
+    }
+  }
+ 
+}
+
+//Edit text to show player health
+function warnPlayerHealth(text){
+  plrHealth = state.playerStats.hp;
+  plrMaxHealth = state.playerStats.maxHp; 
+  plrEnergy = state.playerStats.ep;
+  plrMaxEnergy = state.playerStats.maxEp;
+  numTurnsDisplay = 5;
+  
+  //warn player every 5 inputs, they have half health
+  if((plrHealth/plrMaxHealth) >= 0.45 && (plrHealth/plrMaxHealth) <= 0.50 && state.inputCount % numTurnsDisplay === 0){
+    text = text + ` ${realizePhrases[randomInt(0,realizePhrases.length-1)]} ${healthFeelsHalfway[randomInt(0,healthFeelsHalfway.length-1)]}.`;
+  }
+  //Warns at 1% to 10% health
+  else if((plrHealth/plrMaxHealth) >= 0.01 && (plrHealth/plrMaxHealth) <= 0.10 && state.inputCount % numTurnsDisplay === 0){
+    text = text + ` ${realizePhrases[randomInt(0,realizePhrases.length-1)]} ${healthVeryLow[randomInt(0,healthVeryLow.length-1)]}.`;
+  }
+
+  //Player Death at 0%
+  if(plrHealth <= 0 && state.inputCount % 2 === 0){
+    text = text + ` Suddenly, ${healthDeathArray[randomInt(0,healthDeathArray.length-1)]} The world continues without you.`;
+
+    state.msgHolder = state.msgHolder + `GAME OVER. You died!\n`;
+  }
+
+
+  //Warns every 5 input, at 50% energy
+  if((plrEnergy/plrMaxEnergy) >= 0.45 && (plrEnergy/plrMaxEnergy) <= 0.50 && state.inputCount % numTurnsDisplay === 0){
+    text = text + ` ${realizePhrases[randomInt(0,realizePhrases.length-1)]} ${halfEnergyArray[randomInt(0,halfEnergyArray.length-1)]}`;
+  }
+  //Warns at 1% to 10% energy
+  else if((plrEnergy/plrMaxEnergy) >= 0.01 && (plrEnergy/plrMaxEnergy) <= 0.10 && state.inputCount % numTurnsDisplay === 0){
+    text = text + ` ${realizePhrases[randomInt(0,realizePhrases.length-1)]} ${exhaustedArray[randomInt(0,exhaustedArray.length-1)]}`;
+
+    state.msgHolder = state.msgHolder + `Your energy is very low. You may want to rest or eat.\n`
+
+  }
+  
+  //No energy at 0%
+  if(plrEnergy <= 0 && state.inputCount % 5 === 0){
+    text = text + ` Suddenly, ${exhaustionSleepArray[randomInt(0,exhaustionSleepArray.length-1)]}`; 
+
+    state.msgHolder = state.msgHolder + `You have no energy! Recover by consuming or sleeping.\n`
+  }
+
+  return text;
+}
+
+//create a Player Injuries story card if it doesn't exist
+function createIfNoInjurySC() {
+  let injSC = storyCards.find(sc => sc.title === "Player Injuries");
+  if (!injSC) {
+    addStoryCard("Player Injuries", "Tracks all current injuries.", "Player Stats");
+    injSC = storyCards.find(sc => sc.title === "Player Injuries");
+    injSC.description = (injSC.description && injSC.description.trim())
+      ? injSC.description
+      : "Each line: [Turn] | [Severity] | [Body Part] | [Description]";
+    injSC.entry = injSC.entry || "";
+    log("[InjurySC] created");
+  }
+  return injSC;
+}
+//////////////////////////////////////////WEAPONS///////////////////////////////////////////
+
+weaponmodKeys = ["ammoMod", "condMod"];
+weaponStatKeysForMod = ["ammo", "cond"];
+
+// CREATE new sc with Weapon Modifiers if sc doesn't exist
+function createIfNoWeaponmodSC() {
+  if (!storyCards.find(sc => sc.title === "Weapon Modifiers")) {
+    addStoryCard("Weapon Modifiers", "Blank", "Weapons");
+    const weaponmodSC = storyCards.find(sc => sc.title === "Weapon Modifiers");
+    weaponmodSC.description = `Format for Modifying: Modifier: num\nModifiers influence your weapon stats.`;
+    weaponmodKeys.forEach(key => {
+      state.weaponModifiers[key] = 0;
+    });
+    storeWeaponmodsToSC();
+  }
+}
+
+// STORES and displays the modifiers to weapons in sc
+function storeWeaponmodsToSC() {
+  let formatForSC = [];
+  weaponmodKeys.forEach((key) => {
+    const weaponmodName = key.replace("Mod", "").toUpperCase();
+    formatForSC.push(`${weaponmodName} Modifier: ${state.weaponModifiers[key]}%\n`);
+  });
+  const weaponmodSC = storyCards.find(sc => sc.title === "Weapon Modifiers");
+  weaponmodSC.entry = formatForSC.join("").replace(/,/g, '');
+  if (weaponmodSC.description.length > 3000) {
+    let halfIndex = Math.floor(weaponmodSC.description.length / 2);
+    weaponmodSC.description = weaponmodSC.description.slice(0, halfIndex);
+    console.log("Trimming weaponmodSC description to prevent memory overload.");
+  }
+}
+
+// RETRIEVE data from sc and store to Weapon Modifiers
+function retrieveWeaponmodsFromSC() {
+  const weaponmodSC = storyCards.find(sc => sc.title === "Weapon Modifiers");
+  const weaponmodEntries = weaponmodSC.entry.split("\n");
+  weaponmodEntries.forEach(entry => {
+    const match = entry.trim().match(/^([A-Z]+)\s+Modifier:\s*(-?\d+(?:\.\d+)?)(?:%)?$/);
+    if (match) {
+      let weaponmodName = match[1].toLowerCase() + 'Mod';
+      let weaponmodValue = Number(match[2]);
+      state.weaponModifiers[weaponmodName] = weaponmodValue ?? state.weaponModifiers[weaponmodName];
+    }
+  });
+}
+
+// CREATE new story card for equipped weapon in "Equipped Gear" category if it doesn't exist
+function createIfNoEquippedWeaponSC() {
+  if (!storyCards.find(sc => sc.title === "Equipped Weapon")) {
+    addStoryCard("Equipped Weapon", "Currently equipped weapon.", "Equipped Gear");
+    // Optionally, set a description for the card
+    let eqSC = storyCards.find(sc => sc.title === "Equipped Weapon");
+    eqSC.description = "Stores the name of your currently equipped weapon. Format: Weapon Name";
+    eqSC.entry = ""; // Start empty
+  }
+}
+
+// Store equipped weapon in the "Equipped Gear" category
+function storeEquippedWeaponToSC(weaponName) {
+  createIfNoEquippedWeaponSC();
+  let eqSC = storyCards.find(sc => sc.title === "Equipped Weapon");
+  eqSC.entry = weaponName || "";
+}
+
+// Retrieve equipped weapon from the "Equipped Gear" category
+function retrieveEquippedWeaponFromSC() {
+  let eqSC = storyCards.find(sc => sc.title === "Equipped Weapon");
+  return eqSC && eqSC.entry ? eqSC.entry : null;
+}
+
+
+// Initialize Weapon stats for currently equipped weapon
+function getCurrentWeaponName() {
+  // Use state.equippedWeapon if set, else default to first weapon card
+  if (state.equippedWeapon) return state.equippedWeapon;
+  const weaponCard = storyCards.find(sc => sc.type === "Weapons" || sc.category === "Weapons");
+  return weaponCard ? weaponCard.title : null;
+}
+
+// CREATE new sc with weaponstats if sc doesn't exist
+function createIfNoWeaponSC() {
+  // Only create starter weapons if NO weapon cards exist
+  if (!storyCards.some(sc => sc.type === "Weapons" || sc.category === "Weapons")) {
+    // Laspistol
+    addStoryCard("Laspistol", "A simple starter weapon.", "Weapons");
+    const laspistolSC = storyCards.find(sc => sc.title === "Laspistol");
+    laspistolSC.description = "Format for Modifying: Stat: num/maxNum";
+    laspistolSC.entry =
+      "Laspistol\n" +
+      "COND: 100/100\n" +
+      "AMMO: 20/20\n" +
+      "DMG TYPE: Laser Class 1\n" +
+      "AMMO ITEM: micro cell\n" +
+      "Laspistol\n" +
+      "The Laspistol is a compact sidearm favored for its reliability and ease of use. Effective at close range.\n";
+
+    // Lasrifle 
+    addStoryCard("Lasrifle", "A standard-issue rifle with burst fire capability.", "Weapons");
+    const lasrifleSC = storyCards.find(sc => sc.title === "Lasrifle");
+    lasrifleSC.description = "Format for Modifying: Stat: num/maxNum";
+    lasrifleSC.entry =
+      "Lasrifle\n" +
+      "COND: 100/100\n" +
+      "AMMO: 50/50\n" +
+      "DMG TYPE: Laser Class 2\n" +
+      "AMMO ITEM: power cell\n" +
+      "Burst Fire Mode: OFF\n" +
+      "Lasrifle\n" +
+      "The Lasrifle is a standard-issue rifle, reliable, rugged and versatile for most combat situations.\n";
+
+    // RS-43 Longstrike
+    addStoryCard("RS-43 Longstrike", "A powerful rifle with overcharge capability for increased damage.", "Weapons");
+    const longstrikeSC = storyCards.find(sc => sc.title === "RS-43 Longstrike");
+    longstrikeSC.description = "Format for Modifying: Stat: num/maxNum";
+    longstrikeSC.entry =
+      "RS-43 Longstrike\n" +
+      "COND: 100/100\n" +
+      "AMMO: 20/20\n" +
+      "DMG TYPE: Laser Class 3\n" +
+      "AMMO ITEM: power cell\n" +
+      "Overcharge Mode: OFF\n" +
+      "RS-43 Longstrike\n" +
+      "The RS-43 Longstrike is a powerful long-range rifle with overcharge capability for greatly increased damage at the cost of full power cell consumption.\n";
+
+    // Vibro Blade
+    addStoryCard("Vibro Blade", "A deadly vibrating blade with microscopic serrations.", "Weapons");
+    const vibroBladeSC = storyCards.find(sc => sc.title === "Vibro Blade");
+    vibroBladeSC.description = "Format for Modifying: Stat: num/maxNum";
+    vibroBladeSC.entry =
+      "Vibro Blade\n" +
+      "COND: 100/100\n" +
+      "CHARGE: 100/100\n" +
+      "DMG TYPE: Vibration/Cutting\n" +
+      "CHARGE ITEM: power cell\n" +
+      "Vibro Blade\n" +
+      "The Vibro Blade is a fearsome melee weapon with microscopic serrated edges that vibrate at ultrasonic frequencies. When activated, it can slice through armor and flesh with terrifying efficiency, creating a distinctive humming sound. Standard issue for close-quarters combat specialists.";
+  }
+}
+
+
+// STORES and displays weapon stats in sc
+function storeWeaponToSC(weaponName, weaponStatsOverride) {
+  weaponName = weaponName || getCurrentWeaponName();
+  if (!weaponName) return;
+  const weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
+  if (!weaponSC) {
+    log(`Weapon story card not found for: ${weaponName}`);
+    return;
+  }
+  let stats = weaponStatsOverride || retrieveWeaponStatsFromEntry(weaponSC.entry);
+
+  // Split the original entry into lines
+  let lines = weaponSC.entry.split('\n');
+  let newLines = [];
+  let used = {
+    cond: false,
+    ammo: false,
+    dmg: false,
+    ammoItem: false,
+    burst: false,
+    overcharge: false
+  };
+
+  // Replace or update stat lines, preserve others (flavor text, etc.)
+  for (let line of lines) {
+    if (/^COND:/i.test(line)) {
+      newLines.push(`COND: ${stats.cond}/${stats.maxCond}`);
+      used.cond = true;
+    } else if (/^AMMO:/i.test(line)) {
+      newLines.push(`AMMO: ${stats.ammo}/${stats.maxAmmo}`);
+      used.ammo = true;
+    } else if (/^DMG TYPE:/i.test(line)) {
+      newLines.push(`DMG TYPE: ${stats.dmgType || "Laser"}`);
+      used.dmg = true;
+    } else if (/^AMMO ITEM:/i.test(line)) {
+      newLines.push(`AMMO ITEM: ${stats.ammoItem || ""}`);
+      used.ammoItem = true;
+    } else if (/^Burst Fire Mode:/i.test(line)) {
+        newLines.push(`Burst Fire Mode: ${stats.burstFireMode ? "ON" : "OFF"}`);
+        used.burst = true;
+    } else if (/^Overcharge Mode:/i.test(line)) {
+      newLines.push(`Overcharge Mode: ${stats.overchargeMode ? "ON" : "OFF"}`);
+      used.overcharge = true;
+    } else {
+      newLines.push(line);
+    }
+  }
+
+  // Only add missing stat lines if they were present in the original entry
+  // Insert in correct order: COND, AMMO, DMG TYPE, AMMO ITEM, [Burst/Overcharge], [other]
+  function insertAfter(label, value) {
+    let idx = newLines.findIndex(l => new RegExp(`^${label}:`, "i").test(l));
+    if (idx !== -1) {
+      newLines.splice(idx + 1, 0, value);
+    }
+  }
+  // Add missing lines in correct order if they existed in original
+  if (!used.cond && lines.some(l => /^COND:/i.test(l)))
+    newLines.unshift(`COND: ${stats.cond}/${stats.maxCond}`);
+  if (!used.ammo && lines.some(l => /^AMMO:/i.test(l)))
+    insertAfter("COND", `AMMO: ${stats.ammo}/${stats.maxAmmo}`);
+  if (!used.dmg && lines.some(l => /^DMG TYPE:/i.test(l)))
+    insertAfter("AMMO", `DMG TYPE: ${stats.dmgType || "Laser"}`);
+  if (!used.ammoItem && lines.some(l => /^AMMO ITEM:/i.test(l)))
+    insertAfter("DMG TYPE", `AMMO ITEM: ${stats.ammoItem || ""}`);
+  if (!used.burst && lines.some(l => /^Burst Fire Mode:/i.test(l)))
+    insertAfter("AMMO ITEM", `Burst Fire Mode: ${stats.burstFireMode ? "ON" : "OFF"}`);
+  if (!used.overcharge && lines.some(l => /^Overcharge Mode:/i.test(l)))
+    insertAfter("AMMO ITEM", `Overcharge Mode: ${stats.overchargeMode ? "ON" : "OFF"}`);
+
+  weaponSC.entry = newLines.join('\n').replace(/^\n+|\n+$/g, '');
+  if (weaponSC.description.length > 3000) {
+    let halfIndex = Math.floor(weaponSC.description.length / 2);
+    weaponSC.description = weaponSC.description.slice(0, halfIndex);
+    console.log("Trimming weaponSC description to prevent memory overload.");
+  }
+}
+
+
+// Helper: Parse weapon stats from entry string
+function retrieveWeaponStatsFromEntry(entry) {
+  let stats = { cond: 100, ammo: 50, maxCond: 100, maxAmmo: 50, burstFireMode: false, overchargeMode: false, dmgType: "Laser" };
+  entry.split("\n").forEach(line => {
+    let match = line.match(/^COND:\s*(\d+)\s*\/\s*(\d+)/i);
+    if (match) {
+      stats.cond = Number(match[1]);
+      stats.maxCond = Number(match[2]);
+    }
+    match = line.match(/^AMMO:\s*(\d+)\s*\/\s*(\d+)/i);
+    if (match) {
+      stats.ammo = Number(match[1]);
+      stats.maxAmmo = Number(match[2]);
+    }
+    match = line.match(/^DMG TYPE:\s*(.+)$/i);
+    if (match) {
+      stats.dmgType = match[1].trim();
+    }
+    match = line.match(/^AMMO ITEM:\s*(.+)$/i);
+    if (match) {
+      stats.ammoItem = match[1].trim();
+    }
+    match = line.match(/^Burst Fire Mode:\s*(ON|OFF)$/i);
+    if (match) {
+      stats.burstFireMode = match[1].toUpperCase() === "ON";
+    }
+    match = line.match(/^Overcharge Mode:\s*(ON|OFF)$/i);
+    if (match) {
+      stats.overchargeMode = match[1].toUpperCase() === "ON";
+    }
+  });
+  return stats;
+}
+
+// RETRIEVE data from sc and store to weapon
+function retrieveWeaponFromSC(weaponName) {
+  weaponName = weaponName || getCurrentWeaponName();
+  if (!weaponName) return;
+   const weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
+  if (!weaponSC) {
+    log(`Weapon story card not found for: ${weaponName}`);
+    return;
+  }
+  return retrieveWeaponStatsFromEntry(weaponSC.entry);
+}
+
+// Helper: Update weapon modes in story card
+function updateWeaponModes(weaponName, weaponStats) {
+  let weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
+  if (!weaponSC) return;
+
+  // Split the entry into lines
+  let lines = weaponSC.entry.split('\n');
+  let newLines = [];
+  let statLabels = [
+    { label: "COND:", value: `COND: ${weaponStats.cond}/${weaponStats.maxCond}` },
+    { label: "AMMO:", value: `AMMO: ${weaponStats.ammo}/${weaponStats.maxAmmo}` },
+    { label: "DMG TYPE:", value: `DMG TYPE: ${weaponStats.dmgType || "Laser"}` },
+    { label: "AMMO ITEM:", value: `AMMO ITEM: ${weaponStats.ammoItem || ""}` },
+    { label: "Burst Fire Mode:", value: `Burst Fire Mode: ${weaponStats.burstFireMode ? "ON" : "OFF"}` },
+    { label: "Overcharge Mode:", value: `Overcharge Mode: ${weaponStats.overchargeMode ? "ON" : "OFF"}` }
+  ];
+
+  for (let line of lines) {
+    let trimmed = line.trim();
+    let replaced = false;
+    for (let stat of statLabels) {
+      if (trimmed.startsWith(stat.label)) {
+        newLines.push(stat.value);
+        replaced = true;
+        break;
+      }
+    }
+    if (!replaced) newLines.push(line);
+  }
+  weaponSC.entry = newLines.join('\n').replace(/^\n+|\n+$/g, '');
+}
+
+function detectFireModeToggle(text) {
+  // Only check if a weapon is equipped
+  let weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+  if (!weaponName) return text;
+
+  let weaponStats = retrieveWeaponFromSC(weaponName) || {};
+
+  let changed = false;
+
+  // Normalize input
+  let t = text.toLowerCase();
+
+  // Accept more verbs and patterns for toggling burst fire
+ if (
+  /(toggle|select|switch|flip|set|change|turn|enable|disable).{0,30}(burst\s*fire|burst)/i.test(t) ||
+  /(burst\s*fire|burst).{0,30}(mode|on|off|enabled|disabled)/i.test(t) ||
+  /(to|into)\s+burst\s*fire/i.test(t) ||
+  /selector.*(to|for|into)\s*burst\s*fire/i.test(t) ||
+  /flip.*selector.*burst\s*fire/i.test(t)
+) {
+  weaponStats.burstFireMode = !weaponStats.burstFireMode;
+  updateWeaponModes(weaponName, weaponStats);
+  storeWeaponToSC(weaponName, weaponStats);
+  state.msgHolder += `Burst Fire Mode is now ${weaponStats.burstFireMode ? "ON" : "OFF"} for your ${weaponName}.\n`;
+  changed = true;
+}
+
+  // Accept more verbs and patterns for toggling overcharge
+  if (
+    /(toggle|select|switch|flip|set|change|turn|enable|disable).{0,15}(overcharge)/i.test(t) ||
+    /(overcharge).{0,15}(mode|on|off|enabled|disabled)/i.test(t) ||
+    /(to|into)\s+overcharge/i.test(t)
+  ) {
+    weaponStats.overchargeMode = !weaponStats.overchargeMode;
+    updateWeaponModes(weaponName, weaponStats);
+    storeWeaponToSC(weaponName, weaponStats);
+    state.msgHolder += `Overcharge Mode is now ${weaponStats.overchargeMode ? "ON" : "OFF"} for your ${weaponName}.\n`;
+    changed = true;
+  }
+
+  if (changed) return text + " [Fire mode toggled]";
+  return text;
+}
+
+function detectAttack(text) {
+  return detectCombatAction(text, attackWords, 'attack');
+}
+function detectRangedattack(text) {
+  return detectCombatAction(text, rangedattackWords, 'ranged');
+}
+
+
+// --- Patch statUpWeapon to use updateWeaponModes and preserve all lines ---
+function statUpWeapon(statName, incAmt, weaponName) {
+  weaponName = weaponName || getCurrentWeaponName();
+  if (!weaponName) return;
+  const weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
+  if (!weaponSC) return;
+  let stats = retrieveWeaponStatsFromEntry(weaponSC.entry);
+  incAmt = Number(incAmt) || 0;
+  let maxStatName = "max" + statName.charAt(0).toUpperCase() + statName.slice(1);
+  let prev = stats[statName];
+  stats[statName] += incAmt;
+  if (stats[statName] > stats[maxStatName]) stats[statName] = stats[maxStatName];
+  if (stats[statName] < 0) stats[statName] = 0;
+  // Log stat change in weapon story card
+  let sign = incAmt >= 0 ? "⬆️" : "🔻";
+  weaponSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} : ${prev} → ${stats[statName]} (Change: ${incAmt})\n` + weaponSC.description;
+  // Use the improved update function to preserve all lines
+  updateWeaponModes(weaponName, stats);
+}
+
+////////////////////////////////Inventory Management/////////////////////////////////////////////////////
+
+
+console.log("Player Inventory: " + state.playerInv.item + "\n" + state.playerInv.amt);
+
+// CREATE new sc with player inv if sc doesnt exist
+function createIfNoInvSC(){
+  if (!storyCards.find(sc => sc.title === "Player Inventory")) {
+    // If "Player Inventory" card doesn't exist, create it
+    addStoryCard("Player Inventory", "Blank", "Player Stats");
+
+    // Fetch the "Player Inventory" card
+    const invSC = storyCards.find(sc => sc.title === "Player Inventory");
+    invSC.description = "Format for Modifying: ItemName (amt: X)";
+
+  }
+}
+
+// STORE inv to sc
+function storeInvToSC(){
+  // Fetch the "Player Inventory" card
+  const invSC = storyCards.find(sc => sc.title === "Player Inventory");
+  if (!invSC) {
+    log('Player Inventory story card not found!');
+    return;
+  }
+  // Format and display to sc
+  invSC.entry = state.playerInv.item.map((item, index) => `${item} (Amt: ${state.playerInv.amt[index]})`).join("\n");
+
+  // Trim notes on char limit to prevent memory overfill
+  if (invSC.description.length > 3000) {
+    halfIndex = Math.floor(invSC.description.length / 2);
+    invSC.description = invSC.description.slice(0, halfIndex);
+
+    console.log("Trimming invSC description to prevent memory overload.");
+  }
+}
+
+// RETRIEVE inv data from sc
+function retrieveInvFromSC(){
+  // Fetch the "Player Inventory" card
+  const invSC = storyCards.find(sc => sc.title === "Player Inventory");
+  if (!invSC) {
+    log('Player Inventory story card not found!');
+    return;
+  }
+  // Get inv sc entry
+  fromInvSC = invSC.entry;
+  log("fromInvSC: " + fromInvSC);
+
+  // Use regex to extract item names and amounts (Ex: Ball (Amt: 2), etc. )
+  matches = fromInvSC.matchAll(/(.+?)\s*\(Amt:\s*(\d+(?:\.\d+)?)\)/gi);
+
+  itemHold = [];
+  amtHold = [];
+  for (const match of matches) {
+    itemHold.push(match[1].trim()); // Extract item name to holder
+    amtHold.push(Number(match[2])); // Extract amount as integer to holder2
+  }
+
+  // Store retrieved data to codebase 
+  state.playerInv.item = itemHold;
+  state.playerInv.amt = amtHold;
+  //console.log("Items:", state.playerInv.item);
+  //console.log("Amounts:", state.playerInv.amt);
+}
+
+
+function detectStoreInv(text) {
+
+  // Prevent inventory actions during dialogue
+ if (isPlayerDialoguing(text)) return text; // Skip inventory logic if dialoguing
+
+ // First, check if this is actually a combat action
+  if (/take\s+aim|aim\s+at|and\s+fire|you\s+fire|fire\s+at/i.test(text.toLowerCase())) {
+    return text; // This is likely a combat action, not inventory management
+  }
+
+    // Remove punctuation except hyphens, split into words
+    let wordsArr = text.replace(/[.,!?]/g, '').replace(/\s+/g, ' ').trim().split(' ');
+
+    // Find the index of the first equip/store verb
+    let equipIndex = wordsArr.findIndex(w => equipWords.some(eq => w.toLowerCase() === eq.toLowerCase()));
+    if (equipIndex === -1) return text;
+
+    // Find the index of the first inventory word (optional)
+    let invIndex = wordsArr.findIndex(w => invWords.some(inv => w.toLowerCase() === inv.toLowerCase()));
+
+    // Extract everything after the equip verb up to the inventory word (or end)
+    let afterEquip = wordsArr.slice(equipIndex + 1, invIndex !== -1 ? invIndex : undefined).join(' ');
+
+    // Split on " and " to get possible item phrases
+    let itemPhrases = afterEquip.split(/\s+and\s+/i).map(s => s.trim()).filter(Boolean);
+
+    // Regex to remove trailing location phrases (expand as needed)
+    const trailingLocationRegex = /\s*(from|off|on|in|out of|near|by|at|into|onto|upon|beside|under|over|behind|before|after)\s+(the\s+)?[\w\s\-']+$/i;
+
+    let addedAny = false;
+    for (let phrase of itemPhrases) {
+        // Remove trailing location/prepositional phrase using regex
+        let cleanPhrase = phrase.replace(trailingLocationRegex, '').trim();
+
+        // Remove stopwords, equip/inventory words, and trailing verbs/prepositions
+        let itemWords = cleanPhrase.split(' ').filter(w =>
+            !equipWords.includes(w.toLowerCase()) &&
+            !invWords.includes(w.toLowerCase()) &&
+            !stopWords.includes(w.toLowerCase())
+        );
+        while (itemWords.length > 1 && /(placing|putting|adding|storing|taking|grabbing|equipping|looting|snatching|it|them|this|that)/i.test(itemWords[itemWords.length - 1])) {
+            itemWords.pop();
+        }
+
+        // Now check if the first word is a number or number word
+        let itemAmt = 1;
+        const numberWordsRegex = /^(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)$/i;
+        if (itemWords.length > 1 && numberWordsRegex.test(itemWords[0])) {
+            itemAmt = parseInt(wordsToNumber(itemWords[0]).trim());
+            itemWords = itemWords.slice(1);
+        } else if (itemWords.length > 1 && /^\d+$/.test(itemWords[0])) {
+            itemAmt = parseInt(itemWords[0]);
+            itemWords = itemWords.slice(1);
+        }
+
+        // Singularize last word if it's a simple plural (e.g., "cells" -> "cell"), but keep hyphens
+        if (
+            itemWords.length > 0 &&
+            /s$/.test(itemWords[itemWords.length - 1]) &&
+            !/ss$/.test(itemWords[itemWords.length - 1])
+        ) {
+            itemWords[itemWords.length - 1] = itemWords[itemWords.length - 1].replace(/s$/, '');
+        }
+
+        // Join remaining words as item name (hyphens are preserved)
+        let itemName = itemWords.join(' ').trim();
+
+        // Final sanity checks
+        if (!itemName || itemName.length < 2) continue;
+
+        // --- Regex: Ignore environmental/non-item phrases ---
+        if (debugNonItemMatch(itemName)) {
+            state.msgHolder += `Ignored non-item phrase: "${itemName}"\n`;
+            continue;
+        }
+
+        // Add to inventory (merge with existing if present)
+        let alreadyIndex = state.playerInv.item.findIndex(i => i.toLowerCase() === itemName.toLowerCase());
+        if (alreadyIndex !== -1 && state.playerInv.amt[alreadyIndex] !== undefined) {
+           state.playerInv.amt[alreadyIndex] += itemAmt;
+        } else {
+        state.playerInv.item.push(itemName);
+        state.playerInv.amt.push(itemAmt);
+        } 
+        state.msgHolder += `🎒 +${itemAmt} ${itemName}\n`;
+        addedAny = true;
+
+        // --- Auto-equip weapon if none equipped ---
+        let weaponNames = getWeaponNamesFromStoryCards();
+        let equippedWeapon = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+        if (
+            weaponNames.some(w => itemName.toLowerCase().includes(w) || w.includes(itemName.toLowerCase())) &&
+            !equippedWeapon
+        ) {
+            storeEquippedWeaponToSC(itemName);
+            state.equippedWeapon = itemName;
+            state.msgHolder += `You equip the ${itemName}.\n`;
+        }
+    }
+
+    if (addedAny) storeInvToSC();
+
+    return addedAny ? text + "🎒" : text;
+}
+
+// Detects when items are removed, dropped, thrown, or taken from the player inventory
+function detectRemoveFromInv(text) {
+  // Define verbs that indicate removal
+  const removeWords = [
+    "drop", "discard", "throw", "toss", "lose", "remove", "give", "hand", "donate", "leave", "abandon", "release", "shed", "let go", "throw away", "throw out", "get rid of", "pass", "offer", "surrender", "yield", "forfeit", "deliver", "send", "transfer", "take away", "taken", "stolen", "robbed"
+  ];
+
+  // Normalize input
+  let t = text.toLowerCase();
+
+  // Check if any remove word is present
+  let found = removeWords.some(word => t.includes(word));
+  if (!found) return text;
+
+  // Try to find which item is being removed
+  let itemRemoved = null;
+  let amtRemoved = 1;
+  
+  // Get currently equipped weapon for comparison
+  let equippedWeapon = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+
+  // Try to match an item from inventory
+  for (let i = 0; i < state.playerInv.item.length; i++) {
+    let itemName = state.playerInv.item[i].toLowerCase();
+    if (t.includes(itemName)) {
+        if (i < state.playerInv.amt.length && state.playerInv.amt[i] !== undefined) {
+            itemRemoved = state.playerInv.item[i];
+            
+            // Try to detect amount (e.g., "drop 2 apples")
+            let regex = new RegExp(`(?:drop|discard|throw|toss|remove|give|hand|leave|abandon|release|shed|let go|throw away|throw out|get rid of|pass|offer|surrender|yield|forfeit|deliver|send|transfer|take away|taken|stolen|robbed)\\s+(\\d+)\\s+${itemName}`, "i");
+            let match = text.match(regex);
+            if (match && match[1]) {
+                amtRemoved = parseInt(match[1]);
+            }
+            
+            // --- Bounds check: never remove more than you have ---
+            amtRemoved = Math.max(1, Math.min(amtRemoved, state.playerInv.amt[i]));
+            state.playerInv.amt[i] -= amtRemoved;
+            
+            // Check if this is the equipped weapon and we're removing all of it
+            if (equippedWeapon && equippedWeapon.toLowerCase() === itemName && 
+                (state.playerInv.amt[i] <= 0 || amtRemoved === state.playerInv.amt[i])) {
+                storeEquippedWeaponToSC(""); // Clear the equipped weapon
+                state.equippedWeapon = null; // Also clear the state variable
+                state.msgHolder += `You no longer have ${itemRemoved} equipped.\n`;
+            }
+            
+            // Remove item completely if amount is 0
+            if (state.playerInv.amt[i] <= 0) {
+                state.playerInv.item.splice(i, 1);
+                state.playerInv.amt.splice(i, 1);
+            }
+            
+            storeInvToSC();
+            state.msgHolder += `🗑️ -${amtRemoved} ${itemRemoved}\n`;
+            break;
+        }
+    }
+  }
+  return text;
+}
+
+///////Reload Weapon function
+
+// Add this function anywhere after your utility functions
+
+function detectReload(text) {
+  // Normalize input
+  let t = text.toLowerCase();
+
+  // Accept common reload commands
+  if (!/(reload|change\s+mag|swap\s+magazine|insert\s+ammo|load\s+ammo)/i.test(t)) return text;
+
+  // Get equipped weapon
+  let weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+  if (!weaponName) {
+    state.msgHolder += "You have no weapon equipped to reload.\n";
+    return text + " You have no weapon equipped to reload.";
+  }
+
+  // Get weapon stats and SC
+  let weaponSC = storyCards.find(sc => sc.title.toLowerCase() === weaponName.toLowerCase());
+  if (!weaponSC) return text;
+  let weaponStats = retrieveWeaponStatsFromEntry(weaponSC.entry);
+
+  // Determine ammo item name (e.g., "lasrifle cell" for "lasrifle")
+  let ammoItem = weaponStats.ammoItem || (weaponName.toLowerCase() + " cell");
+
+  // Check inventory for ammo
+  let invIndex = state.playerInv.item.findIndex(i => i.toLowerCase() === ammoItem);
+  if (invIndex === -1 || state.playerInv.amt[invIndex] < 1) {
+    state.msgHolder += `You have no ${ammoItem}s in your inventory to reload.\n`;
+    return text + ` You have no ${ammoItem}s to reload.`;
+  }
+
+  // Only reload if not already full
+  if (weaponStats.ammo >= weaponStats.maxAmmo) {
+    state.msgHolder += `Your ${weaponName} is already fully loaded.\n`;
+    return text + ` Your ${weaponName} is already fully loaded.`;
+  }
+
+  // Set ammo to max and remove one ammo item from inventory
+  weaponStats.ammo = weaponStats.maxAmmo;
+  state.playerInv.amt[invIndex] -= 1;
+  if (state.playerInv.amt[invIndex] <= 0) {
+    state.playerInv.item.splice(invIndex, 1);
+    state.playerInv.amt.splice(invIndex, 1);
+  }
+  storeWeaponToSC(weaponName, weaponStats);
+  storeInvToSC();
+
+  state.msgHolder += `You reload your ${weaponName} using a ${ammoItem} ⚙️.\n`;
+  return text + ` You reload your ${weaponName} ⚙️.`;
+}
+
+
+
+//Function to create new class skills for player and store to their skills
+function newClassSkills(classString, skillArray) {
+  // Safely get context string, or empty string if missing
+  let plotEssentials = (state.memory && typeof state.memory.context === "string")
+    ? state.memory.context.toLowerCase()
+    : "";
+  if (plotEssentials.includes(classString + " class")) {
+    state.playerSkills.name = [
+      skillArray[randomInt(0, skillArray.length - 1)],
+      skillArray[randomInt(0, skillArray.length - 1)],
+      skillArray[randomInt(0, skillArray.length - 1)]
+    ];
+    state.playerSkills.lvl = [
+      randomInt(0, 3),
+      randomInt(0, 3),
+      randomInt(0, 3)
+    ];
+    state.playerSkills.cost = [
+      randomInt(10, 40),
+      randomInt(10, 40),
+      randomInt(10, 40)
+    ];
+
+    storeSkillsToSC();
+  }
+}
+
+//Always CREATE initial sc if none.
+function createIfNoSkillSC() {
+  // If "Player Skills" card doesn't exist, create it
+  if (!storyCards.find(sc => sc.title === "Player Skills")) {
+    addStoryCard("Player Skills", "Blank", "Player Stats");
+
+    // Fetch SC and give it a description
+    const skillSC = storyCards.find(sc => sc.title === "Player Skills");
+    skillSC.description = "Format for Modifying: SkillName (LVL), etc.";
+
+     // Try to detect class and assign skills
+     let assigned = false;
+     if (state.memory && state.memory.context) {
+      let context = state.memory.context.toLowerCase();
+      if (context.includes("psyker class")) {
+        newClassSkills('psyker', PsykerSpells);
+        assigned = true;
+       } else if (context.includes("medic class")) {
+        newClassSkills('medic', MedicSkills);
+        assigned = true;
+       } else if (context.includes("tech class")) {
+        newClassSkills('tech', TechSkills);
+        assigned = true;
+       } else if (context.includes("engineer class")) {
+        newClassSkills('engineer', EngineerSkills);
+        assigned = true;
+       }
+     }
+     // If no class detected, add all starter skills as default
+     if (!assigned) {
+      let allSkills = [
+      ...(typeof MedicSkills !== "undefined" ? MedicSkills : []),
+      ...TechSkills,
+      ...EngineerSkills
+     ];
+     state.playerSkills.name = allSkills;
+     state.playerSkills.lvl = allSkills.map(() => 1);
+     state.playerSkills.cost = allSkills.map(() => 0); 
+     storeSkillsToSC();
+    }
+  } 
+}
+//To STORE skill to sc
+function storeSkillsToSC(){
+  //Fetch skill sc
+  const skillSC = storyCards.find(sc => sc.title === "Player Skills");
+
+  //Format and display to sc Ex: Fireball 
+  skillSC.entry = state.playerSkills.name.map((skill, index) => `${skill} (Lvl ${state.playerSkills.lvl[index]})`).join("\n");
+
+  // Trim notes on char limit to prevent memory overfill
+  if (skillSC.description.length > 3000) {
+    halfIndex = Math.floor(skillSC.description.length / 2);
+    skillSC.description = skillSC.description.slice(0, halfIndex);
+
+    console.log("Trimming skillSC description to prevent memory overload.");
+  }
+}
+
+//To RETRIEVE skills from SC.
+//Put in output script so retreiving is not limited to on input.
+function retrieveSkillsFromSC(){ 
+  const skillSC = storyCards.find(sc => sc.title === "Player Skills");
+  let temp = skillSC.entry;
+
+  let skillHolder = [];
+  let lvlHolder = [];
+  let costHolder = [];
+  // Match: SkillName (Lvl X)
+  let matches = temp.matchAll(/(.+?)\s*\(Lvl\s*(\d+(?:\.\d+)?)\)/gi);
+
+  for(const match of matches){
+    skillHolder.push(match[1].trim());
+    lvlHolder.push(Number(match[2]));
+    costHolder.push(0); // No CP/MP cost for non-psyker skills
+  }
+
+  state.playerSkills.name = skillHolder;
+  state.playerSkills.lvl = lvlHolder;
+  state.playerSkills.cost = costHolder;
+}
+
+
+// Always create initial Psyker Spells SC if none exists
+function createIfNoPsykerSpellSC() {
+  if (!storyCards.find(sc => sc.title === "Psyker Spells")) {
+    addStoryCard("Psyker Spells", "Blank", "Player Stats");
+    const spellSC = storyCards.find(sc => sc.title === "Psyker Spells");
+    spellSC.description = "Format: SpellName (Lvl X) (CP)";
+    // Initialize with starter psyker spells
+    state.psykerSpells = {
+      name: [...PsykerSpells],
+      lvl: PsykerSpells.map(() => 1),
+      cost: PsykerSpells.map(() => 10),
+      levelUps: PsykerSpells.map(() => 0) 
+    };
+    storePsykerSpellsToSC();
+  }
+}
+
+// To STORE psyker spells to sc
+function storePsykerSpellsToSC() {
+  const spellSC = storyCards.find(sc => sc.title === "Psyker Spells");
+  spellSC.entry = state.psykerSpells.name.map((spell, i) =>
+    `${spell} (Lvl ${state.psykerSpells.lvl[i]}) (${state.psykerSpells.cost[i]} CP)`
+  ).join("\n");
+  spellSC.description = `Spell Level-Ups: ${JSON.stringify(state.psykerSpells.levelUps)}\n` + spellSC.description;
+}
+
+// RETRIEVE psyker spells from the story card
+function retrievePsykerSpellsFromSC() {
+  const spellSC = storyCards.find(sc => sc.title === "Psyker Spells");
+  let temp = spellSC.entry;
+  let name = [], lvl = [], cost = [];
+  let matches = temp.matchAll(/(.+?)\s*\(.*?(\d+(?:\.\d+)?).*?\)\s*\(.*?(\d+(?:\.\d+)?).*?\)/g);
+  for (const match of matches) {
+    name.push(match[1]);
+    lvl.push(Number(match[2]));
+    cost.push(Number(match[3]));
+  }
+  //Always restores levelUps, or initialize if missing
+  let levelUps = state.psykerSpells.levelUps;
+  if (!Array.isArray(levelUps) || levelUps.length !== name.length) {
+    levelUps = name.map(() => 0);
+  }
+  state.psykerSpells = { name, lvl, cost, levelUps };
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+
+// --- Passive Skill Trigger Function ---
+function detectPassiveSkillTrigger(text) {
+  const t = (text || "").toLowerCase();
+
+  for (let i = 0; i < state.playerSkills.name.length; i++) {
+    const skill = (state.playerSkills.name[i] || "").toLowerCase();
+    const cost = state.playerSkills.cost[i];
+    if (cost > 0) continue; // Skip Psyker skills
+
+    const triggers = skillTriggerMap[skill];
+    if (!triggers) continue;
+
+    for (const trig of triggers) {
+      if (t.includes(trig)) {
+        const exp = randomFloat(0.2, 1.0);
+        state.playerSkills.lvl[i] = Math.round((state.playerSkills.lvl[i] + exp) * 100) / 100;
+        storeSkillsToSC();
+        break; // one trigger per skill per call
+      }
+    }
+  }
+  return text;
+}
+
+
+///Corruption cost is reduced as skills level up.
+function upgradePlayerSkills(text){
+  // Only apply corruption cost reduction at milestones, no name change
+  state.playerSkills.name.forEach((skill,index) => {
+    [5,10,15,20,25].forEach(level => {
+      if(Math.floor(state.playerSkills.lvl[index]) == level){
+        // Level up skill to avoid another upgrade at this level
+        state.playerSkills.lvl[index] = level + 1;
+        // Corruption cost reduction
+        state.playerSkills.cost[index] = Math.round(state.playerSkills.cost[index] * 0.95 * 100) / 100;
+        // Optionally, notify the player
+        text = text + ` Your ${state.playerSkills.name[index]} skill has been upgraded!`;
+      }
+    });
+  });
+
+  storeSkillsToSC();
+  return text;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+//Given an arr of words and an array of player storage (inv, spells, skills), check if anything from storage is mentioned in words arr and returns partialTF,full matchTF,storageindex
+function checkPlayerStorage(text,wordsArr,playerStorage){
+  hasThing = false;
+  hasFullThing = false;
+  finalThingIndex = false;
+  ind = [];
+
+  //Check if player has anything that PARTIALLY matches the input text
+  //Loop through input words
+  wordsArr.forEach((word, index1) => {
+    //get the lower case version of the word
+    loweredWord = word.toLowerCase();
+    //loop through player things names
+    playerStorage.forEach((thing, index2) => {
+      // Get the lower case version of the thing name
+      loweredThing = thing.toLowerCase();
+      
+      // Check if the word is long enough and if it matches part of the thing name
+      if (loweredWord.length >= 4 && loweredThing.includes(loweredWord)) {
+        hasThing = true;
+        ind.push(index2);
+      }
+      //Else Check if the word matches the prefix of the thing name
+      else if (loweredThing.startsWith(loweredWord) && loweredWord.length >= 3) {
+          hasThing = true;
+          ind.push(index2);
+        }
+      //Else Check if the word matches the suffix of the thing name
+      else if (loweredThing.endsWith(loweredWord) && loweredWord.length >= 3) {
+          hasThing = true;
+          ind.push(index2);
+        }
+
+    });//end of thing loop
+  });//end of input word loop
+  log("hasThing: " + hasThing);
+
+  //Continue if partial thing matched, which means storage has at least one thing that is mentioned in text
+  if (ind.length > 0) {
+    //From all thing matches, pick a random one to be the returned thing.
+    finalThingIndex = ind[Math.floor(Math.random() * ind.length)];
+
+    //Check for EXACT thing matches which overrides PARTIAL thing matches
+    textLower = text.toLowerCase();
+
+    //loop through player things
+    playerStorage.forEach((thing, index) => {
+      //Compare input text and player things for exact matches to override final index and flag full thing match.
+      if (textLower.includes(thing.toLowerCase())) {
+        finalThingIndex = index;
+        hasFullThing = true;
+      }
+    })
+    log("finalThingIndex: " + finalThingIndex);
+  }
+
+  return [hasThing,hasFullThing,finalThingIndex];
+}
+
+// --- New function for executing Psyker Spells ---
+function executePsykerSpell(psykerIndex, text){
+  // CP cost and small INTL gain
+  statUp("cp", state.psykerSpells.cost[psykerIndex] * 1);
+  statUp("intl", randomFloat(0.01,0.5));
+  storeStatsToSC();
+
+  // XP gain and class level tracking
+  const oldLvl = state.psykerSpells.lvl[psykerIndex];
+  const spellExp = randomFloat(0, 0.8);
+  state.psykerSpells.lvl[psykerIndex] = Math.round((state.psykerSpells.lvl[psykerIndex] + spellExp) * 100) / 100;
+  levelUpPsykerSpell(psykerIndex);
+  storePsykerSpellsToSC();
+
+  // Log only
+  const spellSC = storyCards.find(sc => sc.title === "Psyker Spells");
+  spellSC.description = `Log ${state.turnCount} | ${state.psykerSpells.name[psykerIndex]} gained ${spellExp.toFixed(2)} lvl. Lvl ${oldLvl} => ${state.psykerSpells.lvl[psykerIndex]}\n` + spellSC.description;
+
+  return text; // no flavor text appended
+}
+
+///new function for executing skills
+function executeSkill(text){
+  if (!skillCheck[0]) return text;
+
+  // Small INTL gain
+  statUp("intl", randomFloat(0.01,0.5));
+  storeStatsToSC();
+
+  const oldSkillLvl = state.playerSkills.lvl[skillIndex];
+  const skillExp = randomFloat(0, 0.8);
+  state.playerSkills.lvl[skillIndex] += skillExp;
+
+  // Cap skill by class level
+  const st = getSkillType(state.playerSkills.name[skillIndex]);
+  if (st && state.skillClasses[st]) {
+    const classLvl = state.skillClasses[st].lvl;
+    if (state.playerSkills.lvl[skillIndex] > classLvl) {
+      state.playerSkills.lvl[skillIndex] = classLvl;
+    }
+  }
+
+  state.playerSkills.lvl[skillIndex] = Math.round(state.playerSkills.lvl[skillIndex] * 100) / 100;
+  storeSkillsToSC();
+  if (st) levelUpSkill(skillIndex, st);
+
+  // Log only
+  const skillSC = storyCards.find(sc => sc.title === "Player Skills");
+  skillSC.description = `Log ${state.turnCount} | ${state.playerSkills.name[skillIndex]} gained ${skillExp.toFixed(2)} lvl. Lvl ${oldSkillLvl} => ${state.playerSkills.lvl[skillIndex]}\n` + skillSC.description;
+
+  return text; // no flavor/harness text appended
+}
+
+// After skill checks, this function detects if the player is performing a heal action and executes the healing process. Defaults to skill healing if both talent and skill healing are available.
+function detectTalentSkillHeal(){
+  // Player must pass at least one of the skill checks to perform a healing action
+  if(skillCheck[0]){
+    healingSelf = false;
+
+    //// Check if the player is performing a healing action. Use text b/c inp targetwords were simplified
+    healing = cleanStringCheckForTargets(healingActions,text);
+    log("healing: " + healing);
+
+    // Check if the player is attempting to heal themselves
+    healingSelf = cleanStringCheckForTargets(selfWords,text);
+    log("healingSelf: " + healingSelf);
+
+    // If both a healing action and self-healing are detected, proceed with healing based on skill level
+    if(healing && healingSelf){
+      getLvl = [];
+
+      // If the player has a skill that passed the check, push its level into the getLvl array
+      if(skillCheck[0]){
+        getLvl.push(state.playerSkills.lvl[skillCheck[2]]);
+      }
+      log("getLvl: " + getLvl);
+      
+      // If only one skill or talent passed, the array will contain one level value.
+      // Calculate healing amount based on the single level and heal the player.
+      if(getLvl.length == 1){
+        healAmt = getLvl[0] * 3;
+        log('healAmt: '+ healAmt);
+        statUp("hp",healAmt);
+        postActionText = postActionText + " You feel better as you recover some health 🩺."
+      }
+      
+    }
+
+
+  }
+}
+
+///////////////////////////////
+
+//Check if player is first entering, then is entering into rest, and replenish their stats according to their rest intensity
+function detectResting(text){
+  startRest = false;
+  isEntering = false;
+
+  // Prevent resting actions during dialogue
+  if (isPlayerDialoguing(text)) return text;
+
+  // Check input for enter words and split the input
+  restingTextInput = [];
+  restingTextInput = findTargetsThenSplit(text, enterWords, restingTextInput, true);
+  console.log("restingTextInput simplified: " + restingTextInput);
+
+
+    //If input has enter words get their indices
+    if(restingTextInput != null){
+      allEnterWordsIndices = [];
+      allEnterWordsIndices = indicesOfTargets(restingTextInput,enterWords);
+      log("allEnterWordsIndices:" + allEnterWordsIndices);
+
+      //Detect if there is  you + enter or and + enter
+      if(allEnterWordsIndices != null){
+        isEntering = checkYouBeforeIndicesArr(restingTextInput,allEnterWordsIndices,3) || checkAndBeforeIndicesArr(restingTextInput,allEnterWordsIndices,2);
+        
+        startRest = cleanStringCheckForTargets(restingWords,text);
+        log("isEntering: "+ isEntering)
+        log("startRest: " + startRest);
+      }
+    }
+
+  if(isEntering && startRest){
+    //Replenish stats based on player rest intensity
+    lightRest = cleanStringCheckForTargets(lightRestWords,text);
+    moderateRest = cleanStringCheckForTargets(moderateRestWords,text);
+    fullRest = cleanStringCheckForTargets(fullRestWords,text);
+
+    if(fullRest){
+      statUp("hp", state.playerStats.maxHp * randomFloat(0.6,0.9));
+      statUp("ep",state.playerStats.maxEp * randomFloat(0.6,0.9));
+      statUp("cp",state.playerStats.maxCp * randomFloat(-0.6,-0.9));
+      text = text + " Your time resting leaves you feeling recovered."
+    }
+    else if(moderateRest){
+      statUp("hp", state.playerStats.maxHp * randomFloat(0.4,0.6));
+      statUp("ep",state.playerStats.maxEp * randomFloat(0.4,0.6));
+      statUp("cp",state.playerStats.maxCp * randomFloat(-0.4,-0.6));
+      text = text + " Your time resting leaves you feeling better than you were before."
+
+    }
+    else if(lightRest){
+      statUp("hp", state.playerStats.maxHp * randomFloat(0.2,0.4));
+      statUp("ep",state.playerStats.maxEp * randomFloat(0.2,0.4));
+      statUp("cp",state.playerStats.maxCp * randomFloat(-0.2,-0.4));
+      text = text + " Your time resting leaves you feeling a bit better."
+
+    }
+    else{
+      statUp("hp", state.playerStats.maxHp * randomFloat(0.2,0.4));
+      statUp("ep",state.playerStats.maxEp * randomFloat(0.2,0.4));
+      statUp("cp",state.playerStats.maxCp * randomFloat(-0.2,-0.4));
+      text = text + " Your time resting leaves you feeling more okay."
+
+    }
+    
+    storeStatsToSC();
+  }//end of startresting
+
+  return text;
+}
+
+//Detects when player consumes something which heals them.
+function detectConsuming(text){
+  startConsume = false;
+
+  // Prevent consuming actions during dialogue
+  if (isPlayerDialoguing(text)) return text;
+
+  // Check input for consume words and split the input
+  consumingTextInput = [];
+  consumingTextInput = findTargetsThenSplit(text, consumeWords, consumingTextInput, true);
+  console.log("consumingTextInput simplified: " + consumingTextInput);
+
+
+    //If input has consume words get their indices
+    if(consumingTextInput != null){
+      allConsumeWordsIndices = [];
+      allConsumeWordsIndices = indicesOfTargets(consumingTextInput,consumeWords);
+      log("allConsumeWordsIndices:" + allConsumeWordsIndices);
+
+      //Detect if there is  you + consume or and + consume
+      if(allConsumeWordsIndices != null){
+        startConsume = checkYouBeforeIndicesArr(consumingTextInput,allConsumeWordsIndices,3) || checkAndBeforeIndicesArr(consumingTextInput,allConsumeWordsIndices,2);
+        log("startConsume: " + startConsume);
+      }
+    }
+
+  if(startConsume){
+    //Verify intensity of player consumable
+    lightHeal = cleanStringCheckForTargets(lightHealWords,text);
+    moderateHeal = cleanStringCheckForTargets(moderateHealWords,text);
+    strongHeal = cleanStringCheckForTargets(strongHealWords,text);
+    greatHeal = cleanStringCheckForTargets(greatHealWords,text);
+    powerfulHeal = cleanStringCheckForTargets(powerfulHealWords,text);
+    log("healIntensity: " + [lightHeal,moderateHeal,strongHeal,greatHeal,powerfulHeal]);
+
+    if(powerfulHeal){
+      statUp("hp",100);
+      statUp("ep",120);
+      text = text + " You feel restored."
+    }
+    else if(greatHeal){
+      statUp("hp",50);
+      statUp("ep",80);
+      text = text + " You feel greatly better."
+
+    }
+    else if(strongHeal){
+      statUp("hp",30);
+      statUp("ep",40);
+      text = text + " You feel a lot better."
+
+    }
+    else if(moderateHeal){
+      statUp("hp",20);
+      statUp("ep",30);
+      text = text + " You feel moderately better."
+
+    } 
+    else if(lightHeal){
+      statUp("hp",10);
+      statUp("ep",10);
+      text = text + " You feel slightly better."
+    }
+    
+    if(!lightHeal && !moderateHeal && !strongHeal && !greatHeal && !powerfulHeal){
+      //default heal
+      statUp("hp",5);
+      statUp("ep",5)
+      text = text + " You feel a bit better."
+    }
+
+    storeStatsToSC();
+    return text
+
+  }//end of startconsume
+
+  return text;
+}
+
+// --- Consolidated Attack and Ranged Attack Logic ---
+
+function getActionRepeatCount(text) {
+  // Match "twice", "thrice", "x3", "3 times", etc.
+  let match = text.match(/(\d+)\s*(?:times|x)?/i);
+  if (match) {
+    let count = parseInt(match[1]);
+    if (!isNaN(count) && count > 0) return Math.min(count, 10);
+  }
+  // Handle "twice" and "thrice"
+  if (/twice/i.test(text)) return 2;
+  if (/thrice/i.test(text)) return 3;
+  return 1;
+}
+
+function detectCombatAction(text, actionWords, actionType) {
+  if (isPlayerDialoguing(text)) return text;
+
+  const actionTextInput = findTargetsThenSplit(text, actionWords, [], true);
+  if (!actionTextInput) return text;
+
+  const allActionWordIndices = indicesOfTargets(actionTextInput, actionWords);
+  if (!allActionWordIndices) return text;
+
+  let actionsTriggered = 0;
+  let totalShots = 0;               // NEW
+  let weaponName = null;            // NEW
+  let weaponStats = null;           // NEW (mutated by executeAction)
+  let weaponBefore = null;          // NEW snapshot
+
+  for (let idx of allActionWordIndices) {
+    const youContext = checkYouBeforeIndicesArr(actionTextInput, [idx], 3);
+    const andContext = checkAndBeforeIndicesArr(actionTextInput, [idx], 2);
+    if (!(youContext || andContext)) continue;
+
+    const phraseAfter = actionTextInput.slice(idx).join(' ');
+    const repeatCount = getActionRepeatCount(phraseAfter);
+
+    if (actionType === 'ranged') {
+      if (!weaponName) {
+        weaponName = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+        if (!weaponName) {
+          state.msgHolder += "You do not have a weapon equipped for ranged attacks.\n";
+          continue;
+        }
+        state.equippedWeapon = weaponName;
+        weaponStats = retrieveWeaponFromSC(weaponName) || { cond: 100, ammo: 50, maxCond: 100, maxAmmo: 50, burstFireMode: false, overchargeMode: false };
+        weaponBefore = { name: weaponName, ...weaponStats }; // snapshot BEFORE
+      }
+      for (let i = 0; i < repeatCount; i++) {
+        executeAction(actionType, weaponName, weaponStats); // resources/stat gains only
+        actionsTriggered++;
+        totalShots++; // count shots
+      }
+    } else {
+      for (let i = 0; i < repeatCount; i++) {
+        executeAction(actionType); // resources/stat gains only
+        actionsTriggered++;
+      }
+    }
+  }
+
+  if (actionsTriggered > 0) {
+    const stats = {
+      atk: state.playerStats.atk, ratk: state.playerStats.ratk, spd: state.playerStats.spd,
+      def: state.playerStats.def, lck: state.playerStats.lck, intl: state.playerStats.intl,
+      hp: state.playerStats.hp, maxHp: state.playerStats.maxHp,
+      ep: state.playerStats.ep, maxEp: state.playerStats.maxEp,
+      cp: state.playerStats.cp, maxCp: state.playerStats.maxCp
+    };
+    let weaponAfter = null;
+    if (actionType === 'ranged' && weaponName) {
+      // weaponStats is already post-action
+      weaponAfter = { name: weaponName, ...(weaponStats || retrieveWeaponFromSC(weaponName) || {}) };
+    }
+    return injectCombatPrompt(text, actionType, stats, weaponAfter, weaponBefore, totalShots);
+  }
+
+  return text;
+}
+
+function executeAction(actionType, weaponName, weaponStats) {
+  // Melee: EP cost + light gains
+  if (actionType === 'attack') {
+    const stat = state.playerStats.atk;
+    const epCost = (stat > 100) ? (20 + stat / 25) * -1 : (2 * (stat / 10) + randomInt(0, 5)) * -1;
+    if (state.playerStats.ep < Math.abs(epCost)) {
+      state.msgHolder += "You are too exhausted to attack.\n";
+      return;
+    }
+    statUp("ep", epCost);
+    statUp("spd", randomFloat(0.01, 1));
+    statUp("atk", randomFloat(0.01, 1));
+    storeStatsToSC();
+    return;
+  }
+
+  // Ranged: ammo cost + mode checks + light gains
+  const ammoCost = weaponStats.overchargeMode
+    ? -weaponStats.ammo
+    : (weaponStats.burstFireMode ? -3 : -1);
+
+  if (weaponStats.overchargeMode && (weaponStats.ammo < Math.ceil(weaponStats.maxAmmo * 0.5))) {
+    state.msgHolder += `You need at least 50% ammunition to overcharge your weapon!\n`;
+    return;
+  }
+  if (weaponStats.ammo < Math.abs(ammoCost) || weaponStats.ammo <= 0) {
+    state.msgHolder += `*Click* your weapon is out of ammunition.\n`;
+    return;
+  }
+
+  weaponStats.ammo += ammoCost;
+  if (weaponStats.ammo < 0) weaponStats.ammo = 0;
+  updateWeaponModes(weaponName, weaponStats);
+  storeWeaponToSC(weaponName, weaponStats);
+
+  statUp("spd", randomFloat(0.01, 1));
+  statUp("ratk", randomFloat(0.01, 1));
+  storeStatsToSC();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+
+// Resets game over state to allows player to continue story
+function resetGameOverState() {
+  state.gameOver = false;
+  state.msgHolder = "";
+  // Optionally reset other game over flags or stats here
+  log("Game over state has been reset.");
+}
+
+////////////////////////////////////////Helper Functions/////////////////////////////////////////////
+
+
+
+/////Context injection helpers//////////
+/**
+ * Injects a SYSTEM prompt for skill/spell use into the input/context.
+ * @param {string} text - The current input or context string.
+ * @param {string} actionType - "skill" or "spell"
+ * @param {string} name - The skill or spell name.
+ * @param {number} level - The skill or spell level.
+ * @param {object} stats - Relevant stats (e.g., INTL, CP).
+ * @returns {string} - The new text with the SYSTEM prompt prepended.
+ */
+function injectSkillUsePrompt(text, actionType, name, level, stats) {
+  const desc = skillDescriptions[name.toLowerCase()] || "No description available.";
+  let prompt = `<SYSTEM>\n` +
+    `# The player is attempting to use the ${actionType} "${name}" at level ${level}.\n` +
+    `# Description: ${desc}\n` +
+    `# Skill level ranges from 1 (novice) to 100 (expert).\n` +
+    `# Player INTL: ${stats.intl}, CP: ${stats.cp}.\n` +
+    `# Narrate the outcome based on skill level, story context, and the skill's description. Skill attempts can fail, partially succeed, or succeed spectacularly.\n` +
+    `</SYSTEM>\n`;
+  return prompt + text;
+}
+
+
+function injectCombatPrompt(text, actionType, stats, weapon) {
+  const parts = [];
+  parts.push(`<SYSTEM>`);
+  parts.push(`# The player performs a ${actionType} action.`);
+  parts.push(`# Player Stats: ATK=${stats.atk}, RATK=${stats.ratk}, SPD=${stats.spd}, DEF=${stats.def}, LCK=${stats.lck}, INTL=${stats.intl}, HP=${stats.hp}/${stats.maxHp}, EP=${stats.ep}/${stats.maxEp}, CP=${stats.cp}/${stats.maxCp}.`);
+  if (weapon && weapon.name) {
+    parts.push(`# Weapon: "${weapon.name}" | AMMO=${weapon.ammo}/${weapon.maxAmmo} | COND=${weapon.cond}/${weapon.maxCond} | Modes: Burst=${weapon.burstFireMode ? "ON":"OFF"}, Overcharge=${weapon.overchargeMode ? "ON":"OFF"}.`);
+  }
+  // NEW: make the timing explicit
+  parts.push(`# All numbers reflect the game state AFTER your action(s) have already been processed. Do NOT subtract ammo/energy again. If you mention remaining ammo, use the value shown.`); 
+  parts.push(`# Narrate only the outcome and visible consequences based on these numbers and current story context. Do not invent stats. Do not restate these instructions.`);
+  parts.push(`</SYSTEM>\n`);
+  return parts.join("\n") + text;
+}
+
+// ---- Injury Flag Protocol helpers ----
+// Note: INJURY_FLAG_REGEX is already defined above.
+// Example: const INJURY_FLAG_REGEX = /<<INJURY_FLAG\|([^>]+)>>/gi;
+
+function sanitizeInjuryTags(text) {
+  const openCount  = (text.match(/\[!inj\]/gi) || []).length;
+  const closeCount = (text.match(/\[!\/inj\]/gi) || []).length;
+
+  // If there are more closes than opens, drop extra closes
+  if (closeCount > openCount) {
+    let excess = closeCount - openCount;
+    text = text.replace(/\[!\/inj\]/gi, m => (excess-- > 0 ? "" : m));
+  }
+
+  // If there are more opens than closes, append missing closes at end
+  if (openCount > closeCount) {
+    const missing = openCount - closeCount;
+    text += " " + "[!/inj]".repeat(missing);
+  }
+  return text;
+}
+
+
+
+/**
+ * Ask the model to append machine-readable flags AFTER its story
+ * whenever the player ("you") is harmed or about to be harmed.
+ */
+function injectInjuryFlagProtocol(text) {
+  const marker = "Injury Flag Protocol";
+  if (text && text.indexOf(marker) !== -1) return text;
+  const sys = `<SYSTEM>
+# Injury/Healing Flags (append at end)
+# If the player was injured: <!inj>brief summary</inj>
+# If the player was healed/treated: <!heal>brief summary</heal>
+# Use one or both. One short sentence each. Do not tag individual lines.
+</SYSTEM>
+`;
+  return sys + text;
+}
+
+/** Ensure the Player Injuries SC exists and prepend a note to its description. */
+function appendInjuryFlagToSC(noteText, kind = "inj") {
+  createIfNoInjurySC();
+  const injSC = storyCards.find(sc => sc.title === "Player Injuries");
+  const turn = state.turnCount || 0;
+  const tag = (kind === "heal") ? "Heal" : "Injury";
+  const line = `${tag} T${turn}: ${noteText}`;
+  injSC.description = `${line}\n${injSC.description || ""}`;
+  injSC.entry = `${line}\n${injSC.entry || ""}`;
+  log(`[InjuryProto] stored ${tag.toLowerCase()} -> ${line}`);
+  if (injSC.description.length > 6000) injSC.description = injSC.description.slice(0, 6000);
+  if ((injSC.entry || "").length > 8000) injSC.entry = injSC.entry.slice(0, 8000);
+}
+
+/** Parse <!inj> and <!heal> tags, store them, and strip them from visible output. */
+function consumeInjuryFlags(text) {
+  let had = false, injCount = 0, healCount = 0, m;
+  let injuries = [], heals = [];
+
+  // Note: sanitizeInjuryTags only handles [!inj] forms; safe to call but not needed for angle tags
+  text = sanitizeInjuryTags(text);
+
+  INJURY_FLAG_REGEX.lastIndex = 0;
+  while ((m = INJURY_FLAG_REGEX.exec(text)) !== null) {
+    const payload = (m[1] || "").trim();
+    if (payload) {
+      had = true;
+      injCount++;
+      injuries.push(payload);
+      appendInjuryFlagToSC(payload, "inj");
+    }
+  }
+
+  HEAL_FLAG_REGEX.lastIndex = 0;
+  while ((m = HEAL_FLAG_REGEX.exec(text)) !== null) {
+    const payload = (m[1] || "").trim();
+    if (payload) {
+      had = true;
+      healCount++;
+      heals.push(payload);
+      appendInjuryFlagToSC(payload, "heal");
+    }
+  }
+
+  // Remove flagged blocks from player-visible output (keep inner text, trimmed)
+  let cleaned = text.replace(INJURY_FLAG_REGEX, (_match, p1) => (p1 || "").trim());
+  cleaned = cleaned.replace(HEAL_FLAG_REGEX, (_match, p1) => (p1 || "").trim());
+
+  return { hadFlags: had, cleanedText: cleaned, count: injCount + healCount, injuries, heals };
+}
+// ---- End Injury Flag Protocol helpers ----
+
+
+/////End of context injection helpers//////////
+
+// Global skill type helper (used in multiple places)
+function getSkillType(skill) {
+  if (!skill) return "";
+  const s = String(skill).toLowerCase();
+  if (TechSkills.map(x => x.toLowerCase()).includes(s)) return "tech";
+  if (EngineerSkills.map(x => x.toLowerCase()).includes(s)) return "engineer";
+  if (typeof MedicSkills !== "undefined" && MedicSkills.map(x => x.toLowerCase()).includes(s)) return "medic";
+  if (PsykerSpells.map(x => x.toLowerCase()).includes(s)) return "psyker";
+  return "";
+}
+
+
+// --- Contextual Skill/Spell Activation ---
+
+function detectContextualSkillsAndSpells(text) {
+  const actionVerbs = [
+    "cast", "use", "activate", "attempt", "try", "channel", "focus", "unleash", "perform", "do", "trigger", "invoke", "wield", "apply", "execute", "direct", "guide", "stabilize", "repair", "hack", "heal"
+  ];
+  const tokens = (text || "").toLowerCase().match(/\b[\w'-]+\b/g) || [];
+  if (!tokens.length) return null;
+
+  // Indices of action verbs in tokens
+  const verbIdxs = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (actionVerbs.includes(tokens[i])) verbIdxs.push(i);
+  }
+  if (!verbIdxs.length) return null;
+
+  // Build candidate lists
+  const spellNames = (state.psykerSpells?.name || []).map(s => s || "").filter(Boolean);
+  const skillNames = (state.playerSkills?.name || []).map(s => s || "").filter(Boolean);
+
+  function findPhrase(tokens, phraseTokens) {
+    for (let i = 0; i <= tokens.length - phraseTokens.length; i++) {
+      let ok = true;
+      for (let j = 0; j < phraseTokens.length; j++) {
+        if (tokens[i + j] !== phraseTokens[j]) { ok = false; break; }
+      }
+      if (ok) return i;
+    }
+    return -1;
+  }
+  function nearestDistance(aIdx, bIdxArr) {
+    if (!bIdxArr.length || aIdx < 0) return Infinity;
+    let best = Infinity;
+    for (const b of bIdxArr) best = Math.min(best, Math.abs(aIdx - b));
+    return best;
+  }
+  function hasNegationNear(tokens, centerIdx, windowSize = 3) {
+    const neg = new Set(["no","not","don't","dont","do","never","stop","avoid","won't","cant","cannot","without"]);
+    for (let i = Math.max(0, centerIdx - windowSize); i <= Math.min(tokens.length - 1, centerIdx + windowSize); i++) {
+      if (neg.has(tokens[i])) return true;
+      if (tokens[i] === "do" && tokens[i + 1] === "not") return true;
+      if (tokens[i] === "can" && tokens[i + 1] === "not") return true;
+      if (tokens[i] === "will" && tokens[i + 1] === "not") return true;
+    }
+    return false;
+  }
+
+  const spellCandidates = [];
+  for (let i = 0; i < spellNames.length; i++) {
+    const phraseTokens = spellNames[i].toLowerCase().match(/\b[\w'-]+\b/g) || [];
+    const idx = findPhrase(tokens, phraseTokens);
+    if (idx >= 0) {
+      const dist = nearestDistance(idx, verbIdxs);
+      if (dist !== Infinity && !hasNegationNear(tokens, idx)) {
+        spellCandidates.push({ index: i, start: idx, len: phraseTokens.length, dist });
+      }
+    }
+  }
+
+  const skillCandidates = [];
+  for (let i = 0; i < skillNames.length; i++) {
+    const phraseTokens = skillNames[i].toLowerCase().match(/\b[\w'-]+\b/g) || [];
+    const idx = findPhrase(tokens, phraseTokens);
+    if (idx >= 0) {
+      const dist = nearestDistance(idx, verbIdxs);
+      if (dist !== Infinity && !hasNegationNear(tokens, idx)) {
+        skillCandidates.push({ index: i, start: idx, len: phraseTokens.length, dist });
+      }
+    }
+  }
+
+  // Pick best candidate: smallest distance to verb, longer phrase, spells > skills
+  const byRank = (a, b) => (a.dist - b.dist) || (b.len - a.len);
+
+  spellCandidates.sort(byRank);
+  skillCandidates.sort(byRank);
+
+  let choice = null;
+  if (spellCandidates.length && skillCandidates.length) {
+    const s = spellCandidates[0], k = skillCandidates[0];
+    if ((s.dist < k.dist) || (s.dist === k.dist && s.len >= k.len)) {
+      choice = { kind: "spell", index: s.index };
+    } else {
+      choice = { kind: "skill", index: k.index };
+    }
+  } else if (spellCandidates.length) {
+    choice = { kind: "spell", index: spellCandidates[0].index };
+  } else if (skillCandidates.length) {
+    choice = { kind: "skill", index: skillCandidates[0].index };
+  }
+
+  return choice;
+}
+
+/**
+ * Executes the chosen skill/spell and injects a SYSTEM prompt.
+ * Returns the modified text.
+ */
+function runContextualActivation(text, choice) {
+  if (!choice) return text;
+
+  if (choice.kind === "spell") {
+    const spellName = state.psykerSpells.name[choice.index];
+    const spellLevel = state.psykerSpells.lvl[choice.index];
+    const stats = { intl: state.playerStats.intl, cp: state.playerStats.cp };
+    text = injectSkillUsePrompt(text, "spell", spellName, spellLevel, stats);
+    text = executePsykerSpell(choice.index, text);
+    return text;
+  } else if (choice.kind === "skill") {
+    const skillName = state.playerSkills.name[choice.index];
+    const skillLevel = state.playerSkills.lvl[choice.index];
+    const stats = { intl: state.playerStats.intl, cp: state.playerStats.cp };
+    text = injectSkillUsePrompt(text, "skill", skillName, skillLevel, stats);
+    // Patch: pass and return text
+    skillIndex = choice.index;
+    fullSkillMatch = true;
+    skillCheck = [true, true, skillIndex];
+    text = executeSkill(text);
+    return text;
+  }
+  return text;
+}
+
+// Helper function to check if player is dialoguing
+function isPlayerDialoguing(text) {
+  let textLower = text.toLowerCase();
+  return dialoguePhrases.some(phrase => textLower.includes(phrase.toLowerCase()));
+}
+
+/**
+ * Ensures the levelUps array for a given skill or spell object is always in sync with its name array.
+ * Use for both playerSkills and psykerSpells.
+ * @param {object} obj - The skill or spell object (state.playerSkills or state.psykerSpells)
+ */
+function ensureLevelUpsSync(obj) {
+  if (!Array.isArray(obj.levelUps) || obj.levelUps.length !== obj.name.length) {
+    obj.levelUps = obj.name.map(() => 0);
+  }
+}
+
+// Helper function for debugging non-item matches
+function debugNonItemMatch(itemName) {
+  const lowerItem = itemName.toLowerCase();
+  if (nonItemRegex.test(lowerItem)) {
+    // List of all patterns to check individually
+    const patterns = [
+      "cover( behind)?", "in cover", "take cover", "shelters?", "barriers?", "corners?", 
+      "walls?", "floors?", "grounds?", "ceilings?", "windows?", "doors?", "hallways?", 
+      "corridors?", "rooms?", "crates?", "tables?", "chairs?", "beds?", "barricades?", 
+      "pillars?", "platforms?", "ledges?", "alcoves?", "nooks?", "hides?", "hiding spots?", 
+      "spots?", "locations?", "areas?", "places?", "positions?", 
+      "stances?( behind| in| at)?", "take aim", "aim", "surroundings?"
+    ];
+    
+    // Find which specific pattern caused the match
+    for (const pattern of patterns) {
+      const regex = new RegExp(`\\b${pattern}\\b`, 'i');
+      if (regex.test(lowerItem)) {
+        console.log(`🚫 Item "${itemName}" was filtered out by nonItemRegex pattern: "${pattern}"`);
+        return true;
+      }
+    }
+    console.log(`🚫 Item "${itemName}" was filtered out by nonItemRegex but specific pattern not identified`);
+    return true;
+  }
+
+
+
+
+
+  return false;
+}
