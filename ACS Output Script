@@ -1,8 +1,8 @@
-// TSS Output Script
+// ACS Output Script
 
 // Every script needs a modifier function
 const modifier = (text) => {
-  text = onOutput_TSS(text);
+  text = onOutput_ACS(text);
  
   return { text }
 }//end of modifier
