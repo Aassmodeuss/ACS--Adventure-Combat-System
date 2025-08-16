@@ -2,11 +2,11 @@
 
 // Adventure Combat System (ACS) SCRIPT by Aassmodeuss
 
-// Credits
-  // Yi1i1i - For creating True Auto Stats (TAS) which this entire script is based on
-  // BinKompliziert - Idea for Capitalization weighting for skill learning
-  // jackoneill2443 - Idea for modifying player input to show stat results
-  // LewdLeah - General Scripting Knowledge
+// Credits 
+  // Yi1i1i - For creating True Auto Stats (TAS) which this entire script was originally based on
+  // BinKompliziert - Idea for Capitalization weighting for skill learning - TAS
+  // jackoneill2443 - Idea for modifying player input to show stat results -TAS
+  // LewdLeah - General Scripting Knowledge - TAS and has been a big help with questions I have had while creating ACS as well
 //
 
 // This function runs the library hook
@@ -35,8 +35,18 @@ function onLibrary_ACS() {
   if (state.outputCount == undefined) {
     state.outputCount = 0;
   }
-}
 
+  // ---- Armor Canonical Migration (moved inside) ----
+  if (!state._armorCanonMigrated) {
+    try {
+      migrateArmorCardsAddCanonical();
+      state._armorCanonMigrated = true;
+      log("[ArmorCanon] Migration applied (CanonicalName lines ensured).");
+    } catch(e){
+      log("[ArmorCanon] Migration error: " + e);
+    }
+  }
+}
 // Utility function to get weapon names from story cards
 function getWeaponNamesFromStoryCards() {
     return storyCards
@@ -75,17 +85,19 @@ function onInput_ACS(text) {
      //Detect fire mode toggles (standalone)
     text = detectFireModeToggle(text);
 
+    // NEW: armor equip/don/remove detector
+    text = detectArmorEquip(text);
 
     //Create story cards if none
     createIfNoStatSC();
     createIfNoInvSC();
     createIfNoSkillSC();
-    createIfNoPsykerSpellSC();
-    createIfNoModifierSC();        
+    createIfNoPsykerSpellSC(); 
     createIfNoWeaponSC();    
     createIfNoWeaponmodSC();
     createIfNoEquippedWeaponSC();
     createIfNoInjurySC();
+    createIfNoEquippedArmorSC();
   
     //Updates codebase if player edits their storage SCs
     retrieveStatsFromSC();
@@ -94,18 +106,20 @@ function onInput_ACS(text) {
     retrievePsykerSpellsFromSC();
     ensureLevelUpsSync(state.psykerSpells);
     retrieveInvFromSC();
-    retrieveModifiersFromSC();
     retrieveWeaponFromSC();
     retrieveWeaponmodsFromSC();
     retrieveEquippedWeaponFromSC();
+     retrieveEquippedArmorName(); 
+    retrieveArmorFromSC();       
     
-    // --- Contextual skill/spell activation ---
+    // --- Contextual skill/spell activation ------
+    state.contextualActivated = false; // reset per turn
     const ctxChoice = detectContextualSkillsAndSpells(text);
     text = runContextualActivation(text, ctxChoice);
-
+    //---------------------------------------------
     text = detectPassiveSkillTrigger(text);
 
-    text = detectStoreInv(text);
+    text = detectHybridPickup(text);
 
     text = detectRemoveFromInv(text);
 
@@ -113,13 +127,9 @@ function onInput_ACS(text) {
     
     text = detectRangedattack(text);
 
-    text = detectResting(text);
-
-    text = detectConsuming(text);
-
     text = upgradePlayerSkills(text);
-
-    text = warnPlayerHealth(text);
+    
+    text = upgradePsykerSpells(text);
 
     text = detectReload(text);
 
@@ -133,49 +143,42 @@ function onInput_ACS(text) {
 
 // CONTEXT HOOK
 function onContext_ACS(text){
+  // NEW unified context pipeline
   const preLen = (text && text.length) || 0;
-  log(`[Context] onContext_ACS start len=${preLen}`);
-
+  log(`[Context] onContext_ACS(start) len=${preLen}`);
   text = removeAngleText(text);
-  log(`[Context] after removeAngleText len=${(text && text.length) || 0}`);
-
-  // Inject last so it survives other injections and stays compact
-  const before = (text && text.length) || 0;
-  text = injectInjuryFlagProtocol(text);
-  const after = (text && text.length) || 0;
-  log(`[Context] injected InjuryProto lenDelta=${after - before}`);
-
-  return text;
+  return buildUnifiedSystemPrompt(text);
 }
 
 // OUTPUT HOOK
 function onOutput_ACS(text) {
   text = helpCommandOutput_ACS(text);
 
-  // start of main()
-  if (state.startScript == true && info.actionCount >= 0) {
-    state.outputCount += 1;
+  if (state.startScript === true && info.actionCount >= 0) {
+    state.outputCount = (state.outputCount || 0) + 1;
     log("state.outputCount: " + state.outputCount);
 
-    //Create story cards if none
+    // Ensure required Story Cards exist
     createIfNoStatSC();
     createIfNoInvSC();
     createIfNoSkillSC();
     createIfNoPsykerSpellSC();
-    createIfNoModifierSC();
     createIfNoWeaponSC();
     createIfNoWeaponmodSC();
     createIfNoEquippedWeaponSC();
     createIfNoInjurySC();
+    createIfNoEquippedArmorSC();
 
+    // Game over early exit
     if (state.gameOver) {
-      let gameOverMsg = " #The corruption of the warp overwhelms you. You are possessed by an entity of the warp and lose control of your body. GAME OVER. #\n";
+      const gameOverMsg = " #The corruption of the warp overwhelms you. You are possessed by an entity of the warp and lose control of your body. GAME OVER. #\n";
       text += gameOverMsg;
       state.msgHolder += "GAME OVER. You were possessed by corruption!\n";
       return text;
     }
 
-    // Parse and store injury flags first; strip them from visible output
+    // ---- INJURY / HEAL TAGS ----
+    log(`[InjuryProto] tail=${(text || "").slice(-200)}`);
     log(`[InjuryProto] scanning output for flags; outLen=${(text && text.length) || 0}`);
     const flagRes = consumeInjuryFlags(text);
     log(`[InjuryProto] found=${flagRes.count || 0} hadFlags=${!!flagRes.hadFlags}`);
@@ -184,61 +187,91 @@ function onOutput_ACS(text) {
       log(`[InjuryProto] cleaned output len=${(text && text.length) || 0}`);
     }
 
-    //Updates player stats in code if player edits their stats in SC
-    retrieveStatsFromSC();
-    //Stat edits made by the code
-    playerNaturalRegen();
+    // ---- ARMOR RETRIEVE BEFORE ARMOR DAMAGE TAG PARSE (fixes overwrite issue) ----
+    retrieveArmorFromSC(); // load existing damageLog BEFORE adding new entries
 
-    //Final stats store back to SC in correct formatting
+    // ---- ARMOR DAMAGE TAGS ----
+    const armorFlagRes = consumeArmorDamageFlags(text);
+    if (armorFlagRes.hadFlags) {
+      text = armorFlagRes.cleanedText;
+      log(`[ArmorDmg] parsed ${armorFlagRes.entries.length} armor damage tags`);
+    } else {
+      log("[ArmorDmg] no tags this turn.");
+    }
+
+    // ---- SHIELD TURN PROCESSING (after possible damage) ----
+    updateShieldTurn();
+
+    // ---- STORE ARMOR EARLY (so Damage Log persists even if later errors) ----
+    try {
+      storeArmorToSC();
+    } catch (e) {
+      log("[ArmorStore] error: " + e);
+    }
+
+// Parse pickup adjudication tags
+    const pickupRes = consumePickupFlags(text);
+    text = pickupRes.text;
+
+    // ---- STATS ----
+    retrieveStatsFromSC();
+    playerNaturalRegen();
     storeStatsToSC();
 
-
-    //Updates player skills in code if player edits their skills in SC
+    // ---- SKILLS ----
     retrieveSkillsFromSC();
-    ensureLevelUpsSync(state.playerSkills)
-    //Final skill store back to SC in correct formatting
+    ensureLevelUpsSync(state.playerSkills);
     storeSkillsToSC();
-   
-    //Updates psyker spells in code if player edits their spells in SC
+
+    // ---- PSYKER SPELLS ----
     retrievePsykerSpellsFromSC();
     ensureLevelUpsSync(state.psykerSpells);
-    //Final spell store back to SC in correct formatting
     storePsykerSpellsToSC();
 
-    //Updates player inv in code if player edits their inv in SC
+    // ---- INVENTORY ----
     retrieveInvFromSC();
-    //Final skill store back to SC in correct formatting
     storeInvToSC();
 
-    //Updates player mods in code if player edits their mods in SC
-    retrieveModifiersFromSC();
-    //Final mods store back to SC in correct formatting
-    storeModifiersToSC();
-    
-    //Updates Weapon in code if player edits Weapon in SC
+    // ---- WEAPONS ----
     retrieveWeaponFromSC();
-    //Final stats store back to SC in correct formatting
-    storeWeaponToSC();
-    
-    //Updates weapon mods in code if player edits their weapon mods in SC
     retrieveWeaponmodsFromSC();
-    //Final mods store back to SC in correct formatting
     storeWeaponmodsToSC();
+    storeWeaponToSC();
 
-   // Retrieve equipped weapon from the "Equipped Gear" category
-   //retrieveEquippedWeaponFromSC()
-   //Final equipped weapon stores back to SC in correct formatting
-   //storeEquippedWeaponToSC()
+    // (Equipped weapon SC already maintained by helper functions)
 
+    // ---- MESSAGE & TURN ----
     state.message = state.msgHolder;
     state.msgHolder = "";
-
     turnCounter();
-  }//end of main()
+  }
+
   return text;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
+
+const PICKUP_SUCCESS_VERBS = ["wrench","wrenched","wrenching","pry","pries","pried","prying","rip","rips","ripped","ripping","tear","tears","tore","seize","secured","snatch","snatched","yank","yanks","yanked","disarm","disarmed","disarming","strip","stripped","claim","claimed","claiming"];
+const PICKUP_FUTURE_OR_CONDITIONAL = ["will","gonna","going to","plan to","planning to","would","later","soon","try to","intend","intending"];
+
+/* NEW: Core pickup lexicons (required for heuristic engine) */
+const PICKUP_VERBS = [
+  "pick","pick up","grab","take","snatch","loot","collect","seize",
+  "recover","salvage","pull","yank","wrench","pry","rip","tear","pocket","lift","claim"
+];
+
+const PICKUP_NEGATIVE = [
+  "fail","failed","failing","try to","trying to","attempt to","attempted","attempting",
+  "cannot","can't","won't","not","refuse","refused","refusing","unsuccessful"
+];
+
+const PICKUP_CONTESTED = [
+  "his","her","their","enemy","opponent","guard","soldier","raider","pirate",
+  "corpse","dead","fallen","bloodied","wrench","pry","rip","tear","yank"
+];
+
+// Match a bare number (we already normalize digits). Extensible later for words.
+const PICKUP_QUANTITY_REGEX = /\b(\d+)\b/;
 
 // Matches "you", "your", "yourself", "yours", "i", "my", "mine", "myself" (case-insensitive)
 const youWordsRegex = /\b(you|your|yourself|yours|i|my|mine|myself)\b/i;
@@ -246,29 +279,74 @@ const youWordsRegex = /\b(you|your|yourself|yours|i|my|mine|myself)\b/i;
 //Non inventory item blacklist words.
 const nonItemRegex = /\b(cover( behind)?|in cover|take cover|shelters?|barriers?|corners?|walls?|floors?|grounds?|ceilings?|windows?|doors?|hallways?|corridors?|rooms?|crates?|tables?|chairs?|beds?|barricades?|pillars?|platforms?|ledges?|alcoves?|nooks?|hides?|hiding spots?|spots?|locations?|areas?|places?|positions?|stances?( behind| in| at)?|take aim|aim|surroundings?)\b/i;
 
-selfWords = ["me", "my", "myself", "mine", "your", "yourself", "yours", "us", "our", "ours", "ourselves"
+const selfWords = ["me", "my", "myself", "mine", "your", "yourself", "yours", "us", "our", "ours", "ourselves"
 ];
 
 // ---- Injury/Healing Flag Protocol REGEX ----
 const INJURY_FLAG_REGEX = /<!inj>([\s\S]*?)<\/inj>/gim;
 const HEAL_FLAG_REGEX   = /<!heal>([\s\S]*?)<\/heal>/gim;
 
+// Canonical damage type mapper (lowercase tokens -> canonical key)
+const DAMAGE_TYPE_ALIASES = {
+  laser: "directed",
+  beam: "directed",
+  energy: "directed",
+  plasma: "directed",
+  directed: "directed",
 
-castWords = [
+  thermal: "thermal",
+  heat: "thermal",
+  fire: "thermal",
+  flame: "thermal",
+
+  kinetic: "kinetic",
+  projectile: "kinetic",
+  bullet: "kinetic",
+  slug: "kinetic",
+  impact: "kinetic",
+  explosive: "kinetic",
+  explosion: "kinetic",
+  cutting: "kinetic",
+  blade: "kinetic",
+  vibro: "kinetic",
+
+  psychic: "psychic",
+  psionic: "psychic",
+  warp: "psychic",
+
+  sonic: "sonic",
+  resonance: "sonic",
+  resonant: "sonic",
+  vibration: "sonic",
+  sonicwave: "sonic",
+
+  radiation: "other",
+  radioactive: "other",
+  acid: "other",
+  corrosive: "other",
+  chemical: "other",
+  bio: "other",
+  biological: "other",
+  toxin: "other",
+  toxic: "other",
+  other: "other"
+};
+
+const castWords = [
   "activate", "amplify", "bind", "blast", "boost", "burst", "cast", "casting", "channel", "charge", "channeling", "command", "commanding", "conjure", 
   "create", "creating", "detonate", "enchant", "enchanting", "evoke", "explode", 
   "expel", "exude", "flare", "flow", "form", "gather", "gathering", "glow", "harness", "hex", "ignite", "infuse", "invoke", "invoking", "launch", "manifest", "project", "projecting", "pulse","perform", "quicken", "release", "shape", "shift", "shoot", "shooting", "summon", "summoning", "transform", "transforming", "transmute", "trigger", "unbind", "unleash"
 ];
 
-equipWords = [
+const equipWords = [
   "acquire", "add", "collect", "equip", "gather", "grab", "hold", "keep", "loot", "obtain", "pick", "put", "receive", "retrieve", "stash", "snatch", "store", "take", "toss", "wear"
 ];
 
-invWords = [
+const invWords = [
   "bag", "backpack", "body", "case", "chest", "collection",  "container", "crates", "equipment", "hands", "hand", "holder", "holdings", "holster", "inventory", "items", "legs", "loot", "pack", "pocket", "pouch", "rucksack", "sack", "satchel", "storage", "supplies", "tote"
 ];
 
-numWords = [
+const numWords = [
   "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
   "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
   "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
@@ -276,9 +354,9 @@ numWords = [
   "hundred", "thousand", "million", "billion", "trillion"
 ];
 
-titleWords = ["mr", "mrs", "ms", "dr", "prof", "captain", "sir", "lady", "officer", "detective", "colonel", "general", "lieutenant", "president", "governor", "mayor", "minister","ambassador", "director", "agent", "coach", "principal", "judge", "dean", "sister","brother", "father", "mother", "daughter", "son", "king", "queen", "prince", "princess","professor"];
+const titleWords = ["mr", "mrs", "ms", "dr", "prof", "captain", "sir", "lady", "officer", "detective", "colonel", "general", "lieutenant", "president", "governor", "mayor", "minister","ambassador", "director", "agent", "coach", "principal", "judge", "dean", "sister","brother", "father", "mother", "daughter", "son", "king", "queen", "prince", "princess","professor"];
 
-stopWords = [
+const stopWords = [
   // Pronouns
   "I", "me", "my", "myself", "we", "our", "ours", "ourselves",
   "you", "your", "yours", "yourself", "yourselves",
@@ -339,65 +417,34 @@ stopWords = [
   "suddenly", "predictably", "efficiently", "cast"
 ];
 
-healingActions = [
+const healingActions = [
   "heal", "recover", "restore", "regenerate", "revitalize", 
   "rejuvenate", "mend", "bandage", "apply", "inject", "swallow", "absorb", "patch", "treat", "stitch","splint"
 ];
 
-consumeWords = [
+const consumeWords = [
   "drink", "eat", "consume", "inject", "swallow", "absorb", "devour", "ingest", "chew", "bite", "sip", "gulp"
 ];
 
-// Light healing items (basic healing items)
-lightHealWords = [
-  "bandage", "herb", "potion", "water", "minor","salve","ointment","icepack","rinse","snack", "cooked","cook","cooking"
-];
+const enterWords = ["crawl", "drift", "enter", "fall", "get", "go", "head", "lay", "lie down", "make", "move", "nap", "prepare", "proceed", "slip", "sleep", "settle", "sink", "snuggle", "step", "surrender", "take", "turn in", "transition"];
 
-// Moderate healing items (more effective healing items)
-moderateHealWords = ["healing", "elixir", "tincture", "small", "bandage","magic","oil","food","meal","breakfast","lunch","dinner","delicious"
-];
+const restingWords = ["catnap", "doze", "hibernate", "nap", "relax", "rest", "sleep", "slumber", "asleep"];
 
-// Strong healing items (stronger healing items for larger wounds)
-strongHealWords = ["large", "larger", "strong", "big", "scroll", "balm", "alcohol", "cream"
-];
+const lightRestWords = ["brief", "fleeting", "minor", "momentary", "passing", "quick", "relax", "short", "small", "tiny", "transient", "breath", "breathe", "breathing"];
 
-// Intense healing items (used for serious injuries or magical healing)
-greatHealWords = ["superior", "life elixir", "antibacterial", "vitality", "greater","great","rare"
-];
+const moderateRestWords = ["catnap", "doze", "light sleep", "nap", "power nap", "repose", "rest", "siesta", "snooze", "rest"];
 
-// Powerful healing items (used for critical injuries or to restore near full health)
-powerfulHealWords = ["immortality", "crystal", "revival", "divine", "surgery","enchanted","powerful","extremely","extreme","mystical","legendary"
-];
+const fullRestWords = ["deep", "deeply", "hibernation", "hibernate", "long", "prolonged", "rejuvenating", "sleep", "slumber", "sound", "uninterrupted"];
 
-enterWords = ["crawl", "drift", "enter", "fall", "get", "go", "head", "lay", "lie down", "make", "move", "nap", "prepare", "proceed", "slip", "sleep", "settle", "sink", "snuggle", "step", "surrender", "take", "turn in", "transition"];
+const dialoguePhrases = ["You say", "You tell", "You add", "You ask", "You reply", "You state", "You note", "You claim", "You remark", "You mutter", "You insist", "You whisper", "You mention", "You declare", "You respond", "You warn", "You said"];
 
-restingWords = ["catnap", "doze", "hibernate", "nap", "relax", "rest", "sleep", "slumber", "asleep"];
+const attackWords = ["attack", "ambush", "bash", "batter", "bite", "bludgeon", "chop", "claw", "cleave", "club", "crush", "flail", "gouge", "impale", "jab", "kick", "lunge", "maul", "pound", "pummel", "pierce", "punch", "ram", "rend", "shred", "slash", "slam", "slice", "smash", "stab", "strike", "swipe", "swing", "smack", "thrust", "whack", "wreck"];
 
-lightRestWords = ["brief", "fleeting", "minor", "momentary", "passing", "quick", "relax", "short", "small", "tiny", "transient", "breath", "breathe", "breathing"];
-
-moderateRestWords = ["catnap", "doze", "light sleep", "nap", "power nap", "repose", "rest", "siesta", "snooze", "rest"];
-
-fullRestWords = ["deep", "deeply", "hibernation", "hibernate", "long", "prolonged", "rejuvenating", "sleep", "slumber", "sound", "uninterrupted"];
-
-dialoguePhrases = ["You say", "You tell", "You add", "You ask", "You reply", "You state", "You note", "You claim", "You remark", "You mutter", "You insist", "You whisper", "You mention", "You declare", "You respond", "You warn", "You said", "You see", "You hear"];
-
-realizePhrases = ["It becomes apparent", "It becomes clear that", "It clicks that", "You start to realize", "You come to realize", "You come to understand", "You feel that", "You grasp the fact that", "You notice", "You realize", "You recognize that", "You see that", "It dawns on you that"];
-
-becauseYouPhrases = ["because you", "since you", "as you", "given that you", "considering that you", "owing that you", "on account that you", "by virtue that you", "seeing as you", "thanks that you", "as a result that you", "in light that you", "for the reason that you", "in view that you", "due to the fact that you"
-];
-
-assumedWrongPhrases = ["assumed competence", "assumed preparation", "assumed you had on hand what you didn't", "didn't harness existent skills", "didn't harness existent talents", "didn't specify proficiency", "didn't specify reasonably", "expected the air to do something", "failed to secure necessary resources", "forgot to bring the right tools", "had a moment of inexperience", "missed key details", "neglected to prepare properly", "neglected proper planning", "overestimated your readiness", "rushed past your experience", "skipped on clarity", "skipped the resource", "underestimated the necessities", "underprepared", "weren't thorough enough", "were ill-equipped", "were not clear", "were too hasty"];
-
-
-slightlyWorseResults = ["the outcome was close, but mostly off the mark", "the outcome was mostly underwhelming", "the outcome was less than ideal", "the outcome was disappointing", "the outcome was not as good as anticipated", "the result didn't quite measure up", "the result fell short of expectations", "the result was below the expected level", "the result was not quite what was hoped for", "the performance didn't meet expectations", "the performance was below expectations", "the performance was shy of expectations", "the performance was quite subpar", "the final outcome was mildly disappointing", "the final result was a bit of a letdown"];
-
-attackWords = ["attack", "ambush", "bash", "batter", "bite", "bludgeon", "chop", "claw", "cleave", "club", "crush", "flail", "gouge", "impale", "jab", "kick", "lunge", "maul", "pound", "pummel", "pierce", "punch", "ram", "rend", "shred", "slash", "slam", "slice", "smash", "stab", "strike", "swipe", "swing", "smack", "thrust", "whack", "wreck"];
-
-rangedattackWords = ["fire","loose", "launch", "shoot"];
+const rangedattackWords = ["fire","loose", "launch", "shoot"];
 
 
 const skillDescriptions = {
-  // Tech
+  // TechA
   "debug": "Diagnose and fix technical issues in machines or software.",
   "hack": "Bypass security systems and gain unauthorized access.",
   "defragment": "Optimize and repair digital systems.",
@@ -481,58 +528,10 @@ const skillTriggerMap = {
   "psychic ward": ["psychic ward", "protect from psychic", "ward mind", "block psionics"]
 };
 
-// Health status arrays
 
-healthFeelsHalfway = ["your health feels average", "your health is at a mid-point", "your health feels balanced", "you're in fair health", "your health is in the middle", "your health is at an even keel", "your health feels stable but moderate", "you're halfway to full strength", "your health is neither strong nor weak", "your health is moderate", "you're at half strength", "your health stands at the halfway mark", "your vitality is halfway depleted", "you're in a neutral state of health", "your health is balanced at half", "you're halfway from full vigor", "your health is split right down the middle", "you're not in great shape, but not at rock bottom", "your body feels neither strong nor weak, just halfway there", "you're at the middle of your strength"]
 
-healthVeryLow = ["your health is hanging by a few threads", "your vitality is on the brink of collapse", "you're hanging on by a thread", "your health is barely holding together", "your body feels like it's on its last leg", "you're one step away from falling", "your strength is nearly depleted", "you're hanging in there by sheer will", "you're on the edge of total exhaustion", "your health is almost gone, just a breath away from falling", "you're teetering on the edge of unconsciousness", "your body is at its breaking point", "you're seconds away from complete collapse", "your health is almost a memory"];
 
-healthDeathArray = [
-  "the world slows as your life ends, and everything goes dark.",
-  "time seems to freeze as your life slips away, leaving you in the void of death.",
-  "everything blurs as your life gives out, and you fade into nothing.",
-  "the world spins around you as your body gives in, you have died.",
-  "everything goes silent as you collaspe and die.",
-  "the world grows distant as your health drains, and death takes you.",
-  "your vision dims and the world around you disappears as death claims you.",
-  "the air grows heavy, and with one final breath, you fade from existence.",
-  "the ground fades beneath you as your body finally succumbs to death.",
-  "the world keeps turning as you fall into the abyss of your own demise.",
-  "your body gives way, and with a final breath, death embraces you.",
-  "the world fades into stillness, and with it, your life slips away.",
-  "your final moments pass as you embrace death.",
-  "you surrender to death as your health has fallen to zero."
-];
-
- halfEnergyArray = [
-  "you feel drained, like only half of your energy remains.",
-  "your energy is running half of what it should be.",
-  "you feel a bit sluggish, with just half the energy you normally have.",
-  "your vitality feels halved, leaving you feeling sluggish.",
-  "you must be running on a hungry stomach, since you feel like you have half your usual energy.",
-  "you feel like you've only got half the energy left to keep going.",
-  "your energy reserves are half spent, making everything feel slightly more difficult.",
-  "you are craving a nap and its affecting you.",
-  "you're craving an energy drink considering you're half spent",
-  "you feel half as lively.",
-  "your body feels a bit tired, like it’s only working with half the energy.",
-  "you feel halfway exhausted and could use a meal."
-];
-
-exhaustedArray = [
-  "you feel almost drained.",
-  "your energy is nearly depleted.",
-  "you feel close to utterly spent.",
-  "you feel almost completely wiped out.",
-  "you feel like you can't go on any longer.",
-  "your body is fatigued, every movement is a struggle.",
-  "you feel utterly exhausted, as if you've run out of fuel.",
-  "your energy is an inch away from being used up.",
-  "you're so tired, every muscle aches.",
-  "you feel like you're at the end of your rope and need rest."
-];
-
-exhaustionSleepArray = [
+const exhaustionSleepArray = [
   "you find the need for a place for deep sleep as your body succumbs to its weariness.",
   "you urgently need to crawl into slumber, the exhaustion is too much to bear.",
   "you are about to drift away into unconscious sleep as fatigue takes hold.",
@@ -553,7 +552,7 @@ exhaustionSleepArray = [
   "you need to transition into slumber, else your body will fail you."
 ];
 
-bodyParts = [
+const bodyParts = [
   // Standard humanoid body parts
   "abdomen", "achilles tendon", "ankle", "arm", "arteries", "back", "biceps", "bladder", "buttocks", "body",
   "calf", "cheek", "chest", "chin", "collarbone", "deltoid", "diaphragm", "ear", "elbow", "esophagus",
@@ -570,21 +569,21 @@ bodyParts = [
   "snout", "spikes", "stinger", "talon", "tail", "thorax", "trunk", "tusk", "whiskers", "wing"
 ];
 
-PsykerSpells = ["telepathy", "telekinesis", "pyrokinesis", "psychic shield", "mind control", 
+const PsykerSpells = ["telepathy", "telekinesis", "pyrokinesis", "psychic shield", "mind control", 
   "clairvoyance", "psychic blast", "aura reading", "psychic healing", "psychic barrier", "psychic projection", 
   "teleportation", "psychic scream", "psychic manipulation", "psychic ward" ];
 
-TechSkills = [
+const TechSkills = [
   "debug", "hack", "defragment", "reboot", "code", "encrypt", "decrypt", "scan", "analyze", 
 ];
 
-EngineerSkills = [
+const EngineerSkills = [
   "repair", "calibrate", "maintain", "upgrade", "assemble", 
   "disassemble", "construct", "deconstruct", "build", "dismantle", "refurbish", "refit", 
   "reconfigure", "rebuild", "reconstruct", "reengineer", "retool"
 ];
 
-MedicSkills = [
+const MedicSkills = [
   "heal", "revive", "detox", "diagnose", "bandage", "suture", "first aid", "triage", "disinfect", "inject", "medicate"
 ];
 
@@ -593,17 +592,35 @@ MedicSkills = [
 // --- Persistent State Initializations ---
 // Place at line 1685, right after constants and before any functions.
 
-// Player Modifiers
-state.playerModifiers = state.playerModifiers || {
-  lvlMod: 0, hpMod: 0, cpMod: 0, epMod: 0, atkMod: 0, ratkMod: 0, defMod: 0, spdMod: 0, lckMod: 0, intlMod: 0
-};
-
 // Player Stats
 state.playerStats = state.playerStats || {
-  lvl: 0, hp: 0, cp: 0, ep: 0, atk: 0, ratk: 0, def: 0, spd: 0, lck: 0, intl: 0,
-  maxLvl: 0, maxHp: 0, maxCp: 0, maxEp: 0, maxAtk: 0, maxRatk: 0, maxDef: 0, maxSpd: 0, maxLck: 0, maxIntl: 0
+  lvl: 0, cp: 0, ep: 0, atk: 0, ratk: 0, intl: 0,
+  maxLvl: 0, maxCp: 0, maxEp: 0, maxAtk: 0, maxRatk: 0, maxIntl: 0
 };
 state.playerStats.classLevelUps = state.playerStats.classLevelUps || 0;
+
+
+// (1) INITIAL ARMOR STATE – extend default with regen defaults + regenCD
+state.armor = state.armor || {
+  name: "Unarmoured",
+  resist: { 
+    directed: 0, 
+    thermal: 0, 
+    kinetic: 0, 
+    psychic: 0, 
+    sonic: 0, 
+    other: 0 },
+  shield: {
+    charge: 0,
+    max: 0,
+    inRegen: false,
+    regenDelay: 2,   // turns to wait after depletion
+    regenRate: 20,   // % restored per turn once recharging
+    regenCD: 0       // countdown turns until recharge starts
+  },
+  damageLog: []
+};
+
 
 // Skill Classes
 state.skillClasses = state.skillClasses || {
@@ -630,6 +647,9 @@ state.psykerSpells.levelUps = state.psykerSpells.levelUps || state.psykerSpells.
 
 // Weapon Modifiers
 state.weaponModifiers = state.weaponModifiers || { ammoMod: 0, condMod: 0 };
+
+state.pendingSkillSystem = state.pendingSkillSystem || "";
+state.pendingCombatSystem = state.pendingCombatSystem || "";
 
 // --- Skill Execution Globals ---
 let skillIndex = 0;
@@ -659,123 +679,106 @@ function lockScript(text){
 
 //detect /help and display help
 function helpCommandInput_ACS(text){
-  if(text.includes("/help stats")){
-    state.commandCenter_ACS = 
-    `
-    <<
-    📊 Player Stats Guide
+  // Unified /help router (Nova 2025-08-16)
+  const lower = text.toLowerCase();
 
-    - 📥 Type "Player Stats" in the Story Cards to view your current stats.
-    - 🔄 Stats auto-update based on natural player input and context.
-    - ✏️ To manually adjust a stat, use the format: STAT: x/maxX.
-    - 🗒️ Stat change logs appear in the notes of the Player Stats Story Card.
-
-    🧠 Gameplay Mechanics
-
-    - Psyker spells add corruption, Corruption regenerates every turn.
-    - ⚡ Energy decreases every turn.
-    - ⚠️ Low Health or Energy leads to consequences.
-    - 📈 Skills used in actions gain level. Levelled skills increase class level, class levels increase player level.
-    - 🆙 Leveling up increases all max stats.
-
-    📐 Scaling & Calculations
-
-    - 🧠 Max Corruption scales with INTL.
-    >>
-    `
- 
-  }
-  else if(text.includes("/help skills")){
-    state.commandCenter_ACS = 
-    `
-    <<
-    🎯 Skills System Guide
-
-    
-    - 📝 Edit skills in the Story Card using the format: "Skill Name (Lvl)".
-    >>
-    `
-  }
-  
-  else if (text.includes("/help inventory")) {
-  state.commandCenter_ACS = 
-  `
-  <<
-  📦 Inventory Help
-
-  - Store items by typing: "You [store words]... [item name]... [inventory words]."
-  - Include a number to specify quantity. Ex: "You put 2 apples in your bag."
-  - Edit your inventory in the story card using the format: "Item Name (Amt)".
-  - Weapons are automatically equipped when stored if no weapon is currently equipped.
-  - To use an item, type: "You [use words]... [item name]... [inventory words]."
-  - To drop an item, type: "You [drop words]... [item name]... [inventory words]."
-  >>
-    `
-
-  }
-  else if (text.includes("/help actions")) {
-    state.commandCenter_ACS = 
-    `
-    <<
-    🎬 Action System Help
-
-    - Item, and skill usage requires name matching (exact or partial).
-    - Vague actions are taken literally. Example: "You slice it" (slice with what?).
-    - Cast skills: "You [cast verb] [skill name]."
-    - Rest to recover HP, CP, and energy:
-      • Light rest, moderate rest, full rest yield different recovery levels.
-      • Format: "You [enter words] [sleep words]."
-    - Use consumables for healing/energy. Example: "You drink a Mythical potion."
-    - Use skills on yourself to heal. Format: "You [heal word] [yourself] [skill]."
-    - ATK and RNG attack increase your chances of a successful hit.
-    - Weapons
-    - Placing a weapon into your inventory allows you to equip it. Equip a weapon by drawing it as in "I draw my laspistol" 
-    - Once a weapon is equipped you do not need to specify which weapon you are attacking with your attacks will use ammunition from the equipped weapon's story card.
-    - Unequip a weapon by returning it to your holster as in "I return my laspistol to it's holster"
-    - Picking up a weapon automatically adds it to your inventory and equips it if no weapon is currently equipped.
-    - You may toggle fire modes on appropriate weapons by saying "I select" or "I toggle burst fire" or "overcharge". Burst fire fires three rounds, overcharge consumes all remaining ammunition
-    - You may fire multiple times in one action by saying "I fire twice" or "I fire three times etc"
-    - Laser weapons reload with power cells. 1 power cell = full weapon charge
-    >>
-    `
-  }
-  else if (text.includes("/help keywords")) {
-    state.commandCenter_ACS = 
-    `
-    <<
-    
-    🔎 castWords:\n${castWords}
-    🔎 equipWords:\n${equipWords}
-    🔎 invWords:\n${invWords}
-    🔎 attackWords:\n${attackWords}
-    🔎 consumeWords:\n${consumeWords}
-    🔎 restingWords:\n${restingWords}
-    🔎 rangedattackWords:\n${rangedattackWords}
-    >>
-    `
-  }
-  else if (text.includes("/help")) {
-    state.commandCenter_ACS = 
-    `
-    <<
-    Adventure Combat System RPG SCRIPT BY Aassmodeuss
-    🛠️ Script Commands
-
-    - /start — Starts the script
-    - /end — Stops the script
-    - /help stats — Stat mechanics and usage
-    - /help skills — Skill casting and upgrades
-    - /help inventory — Storing and managing items
-    - /help actions — Combat, healing, resting, and usage behaviors
-    - /help keywords — Command triggers
-    - /reset — Resets game over state allowing you to continue your playthrough after modirying your stats.
-    >>
-    `
-  }
-   else if (text.includes("/reset")) {
+  // /reset still supported
+  if (lower.includes("/reset")) {
     resetGameOverState();
     state.msgHolder += "Game over state reset. You may continue your adventure!\n";
+    return;
   }
+
+  // Keep existing debug (not part of public help index)
+  if (lower.includes("/debug psyker")) {
+    const lines = [];
+    if (state.psykerSpells && state.psykerSpells.name){
+      state.psykerSpells.name.forEach((s,i)=>{
+        const applied = (state.psykerSpells.milestoneApplied &&
+                        state.psykerSpells.milestoneApplied[s]) || [];
+        const base = state._psykerBaseCosts ? state._psykerBaseCosts[s] : "?";
+        lines.push(`${s}: Lvl ${state.psykerSpells.lvl[i]} | Cost ${state.psykerSpells.cost[i]} | Base ${base} | Milestones ${applied.join(",")}`);
+      });
+    }
+    state.commandCenter_ACS = `<<\n🔍 Psyker Debug\n${lines.join("\n")}\n>>`;
+    return;
+  }
+
+  if (!/\/help\b/.test(lower)) return; // fast exit if no /help
+
+  const m = lower.match(/\/help(?:\s+([a-z_]+))?/);
+  let topic = (m && m[1]) ? m[1] : "index";
+
+  const topics = {
+
+    index: `📘 HELP INDEX
+Topics:
+  /help stats | combat | weapons | armor | inventory
+  /help skills | psyker | tags | commands
+Core Loop:
+  Type actions normally. System auto-detects attacks, pickups, skill/spell use.
+  Tags (armor / injury / pickup) are hidden helpers that update cards.`,
+
+    stats: `📊 STATS
+LVL gates class caps. ATK (melee accuracy/efficiency), RATK (ranged), INTL (boosts max CP).
+EP = stamina drains each turn & by actions. CP = corruption; spells raise it, natural regen lowers it.
+If CP > max → Game Over.
+Natural Turn Effects: EP slight drain, CP regenerates. Milestones & leveling increase max stats.`,
+
+    combat: `⚔️ COMBAT
+Melee: attack verbs → EP cost, minor ATK growth.
+Ranged: needs equipped weapon; consumes AMMO (burst=3, overcharge=all & needs ≥50%).
+System builds a combat prompt; model may emit armor / injury tags if you’re hit.
+Train ATK/RATK by using them; overuse with low EP leaves you vulnerable.`,
+
+    weapons: `🔫 WEAPONS
+Equip: "draw / equip / wield <weapon>", Holster: "holster / put away".
+Fire Modes: "toggle/select burst fire" or "toggle overcharge".
+Reload: "reload" (consumes AMMO ITEM from inventory).
+Overcharge: fires all remaining ammo—big damage, must have ≥50% mag.
+Burst: 3 rounds if ammo >=3. Weapon card tracks modes & ammo.`,
+
+    armor: `🛡️ ARMOR & SHIELDS
+Equip: "put on / wear / don <armor phrase>".
+Canonical naming strips fluff: "a set of scout armor" → canonical "scout".
+Existing canonical reused to avoid duplicate cards.
+Shields: deplete → cooldown → regen ticks (%/turn) until full.
+Armor damage tag tiers: defeated > exact > moderate > none.`,
+
+    inventory: `🎒 INVENTORY
+Automatic pickup heuristics for verbs (grab, take, loot...). Contested/future tense items need model adjudication via <!pickup>.
+Format in card: Item (Amt: X). Quantities auto-merge.
+Drop: "drop/discard/remove X" (supports counts).
+Reload & crafting pull from inventory by name root (case-insensitive).`,
+    
+    skills: `🛠️ SKILLS
+Non-psyker abilities level by contextual use. Milestones (5,10,15,20,25) reduce corruption (cost) if any.
+Class level ups (10 cumulative skill ups) raise class level; 10 class level ups raise Player LVL.
+Skill activation: verbs near skill name (repair, calibrate, hack, heal, etc.). One passive gain per turn.`,
+
+    psyker: `🔮 PSYKER
+Spells consume CP (corruption). Overuse → exceed max CP → Game Over.
+Milestones reduce base corruption cost multiplicatively (5% each).
+Spell auto-detection similar to skills (verbs like cast / channel / unleash).
+INTL raises max CP; leveling lowers effective cost via milestones.`,
+
+    tags: `🏷️ SYSTEM TAGS
+<!armorDmg> Summarizes strongest armor/shield impact this turn: type, tier, weaponClass, resist, shield delta.
+<!inj> Player injury narrative (one line).
+<!heal> Healing effect line.
+<!pickup> AI adjudicated item secure/fail.
+Tags are stripped from visible output but update story cards & logs.`,
+
+    commands: `⌨️ COMMANDS
+/start (if required) | /end lock script
+/help <topic> (see /help)
+/reset clears Game Over flag
+/debug psyker (dev view)
+Normal play: just type narrative actions; system handles detection & updates.`
+  };
+
+  if (!topics[topic]) topic = "index";
+  state.commandCenter_ACS = `<<\n${topics[topic]}\n>>`;
 }
 
 function helpCommandOutput_ACS(text){
@@ -880,7 +883,7 @@ function isPlayerContext(text, matchIndex, matchLength, windowSize = 10) {
 
 //With a words arr and arr of targets, find all indices for each target in word arr and put them together in one arr
 function indicesOfTargets(wordsArr,targetWordsArr){
-  allTargetsIndicesArr = [];
+  let allTargetsIndicesArr = []; 
 
   //Loop through each target word and store their indices from words arr in an array
   targetWordsArr.forEach(word => {
@@ -1018,15 +1021,10 @@ function levelUpPsykerSpell(spellIndex) {
 // Check for targets in text and split text string into words arr if there are. Replace all target words with first target word if unlocking is true
 function findTargetsThenSplit(text, targetWordsArr, wordsArrHolder, unlocking) {
   if (text == null) return null;
-
-  yesSplit = false
-
-  // Remove punctuation first to standardize text processing
-  cleanText = removeSpecificPunctuation(text); //str
-
-  // loop through target words and check if text has target
+  let yesSplit = false;            // was implicit
+  let cleanText = removeSpecificPunctuation(text);
   targetWordsArr.forEach(target => {
-    targetRegex = new RegExp(`\\b${target}\\b`, "gi");
+    const targetRegex = new RegExp(`\\b${target}\\b`, "gi");
     
     // If text has target, set yessplit true
     if(targetRegex.test(cleanText)){
@@ -1093,31 +1091,21 @@ function checkYouBeforeIndicesArr(wordsArr, indicesArr, numWordsBefore) {
 }
 
 //Given a words arr, checks if there is a "and" a num specificed before target indicesarr
-function checkAndBeforeIndicesArr(wordsArr,indicesArr,numWordsBefore){
-  //loop through array of target indices
-  for(i = 0; i < indicesArr.length; i++){
-    //get the current target index
-    currentIndex = indicesArr[i];
-
-    // Store words from current target index up to specified indices before them without going out of bounds into a holder
-    let prevWordsHolder = wordsArr.slice(Math.max(0, currentIndex - numWordsBefore), currentIndex);
-
-    //Check in holder containing words before current target index if it has "and"
-    if(prevWordsHolder.includes("and")){
+function checkAndBeforeIndicesArr(wordsArr, indicesArr, numWordsBefore){
+  for (let i = 0; i < indicesArr.length; i++){
+    const currentIndex = indicesArr[i];
+    const prevWordsHolder = wordsArr.slice(Math.max(0, currentIndex - numWordsBefore), currentIndex);
+    if (prevWordsHolder.includes("and")){
       return true;
     }
   }
-
   return false;
 }
 
 //Counts how frequent words appear in text and decays less appeared words
 function mostFrequentOutputWords(text){
-  // Split text into words and clean
-  outText = removeSpecificPunctuation(text).split(" ");
-
-  // Include uppercase stop words
-  capitalStopWords = [];
+  let outText = removeSpecificPunctuation(text).split(" "); 
+  let capitalStopWords = []; 
   capitalStopWords = stopWords.map(word => word.charAt(0).toUpperCase() + word.slice(1));
 
   // Remove stop words and player context words using regex
@@ -1157,8 +1145,7 @@ function mostFrequentOutputWords(text){
 
 //sort two linked arrs and display each element together in console
 function sortTwoLinkedArrForConsole(arr1,arrToSort){
-  //Combine for console log debugging
-  combined = arr1.map((word, index) => [word,arrToSort[index]]);
+  let combined = arr1.map((word, index) => [word,arrToSort[index]]);
   // Sort the combined array based on the second element (arrToSort values)
   combined.sort((a, b) => a[1] - b[1]);  // Sort by count (ascending)
   // Extract sorted arr1 and arrToSort from the combined array
@@ -1209,61 +1196,41 @@ function findClosestNumberBefore(arr, index) {
 
 function wordsToNumber(text) {
   const smallNumbers = {
-    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
-    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
-    "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
-    "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19
+    zero:0, one:1, two:2, three:3, four:4, five:5,
+    six:6, seven:7, eight:8, nine:9, ten:10,
+    eleven:11, twelve:12, thirteen:13, fourteen:14,
+    fifteen:15, sixteen:16, seventeen:17, eighteen:18, nineteen:19
   };
-
   const tens = {
-    "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
-    "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90
+    twenty:20, thirty:30, forty:40, fifty:50,
+    sixty:60, seventy:70, eighty:80, ninety:90
   };
-
   const multipliers = {
-    "hundred": 100,
-    "thousand": 1000,
-    "million": 1000000,
-    "billion": 1000000000
+    hundred:100, thousand:1000, million:1000000,
+    billion:1000000000, trillion:1000000000000
   };
-
-  // Match possible number phrases like "two hundred and twenty-five"
   const numberWordsRegex = new RegExp(
     '\\b(?:(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|' +
     'eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|' +
     'twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|' +
-    'hundred|thousand|million|billion|trillion|[-])+\\s*)+\\b',
-    'gi'
+    'hundred|thousand|million|billion|trillion|[-])+\\s*)+\\b','gi'
   );
-
-  // Process a number phrase like "one hundred twenty three"
-  function parseNumberPhrase(phrase) {
-    const words = phrase.toLowerCase().replace(/-/g, ' ').split(/\s+/);
+  function parseNumberPhrase(phrase){
+    const words = phrase.toLowerCase().replace(/-/g,' ').split(/\s+/);
     let total = 0, current = 0;
-
-    for (let word of words) {
-      if (smallNumbers[word] != null) {
-        current += smallNumbers[word];
-      } else if (tens[word] != null) {
-        current += tens[word];
-      } else if (word === "hundred") {
-        current *= 100;
-      } else if (multipliers[word]) {
-        current *= multipliers[word];
+    words.forEach(w=>{
+      if (smallNumbers[w] != null) current += smallNumbers[w];
+      else if (tens[w] != null) current += tens[w];
+      else if (w === "hundred") current *= 100;
+      else if (multipliers[w]){
+        current *= multipliers[w];
         total += current;
         current = 0;
       }
-    }
-
-
-    return total + current + " ";
-
+    });
+    return total + current;
   }
-
-  // Replace all matching phrases with numeric values
-  return text.replace(numberWordsRegex, match => {
-    return parseNumberPhrase(match);
-  });
+  return text.replace(numberWordsRegex, m => parseNumberPhrase(m));
 }
 
 function getDigitIndices(wordsArray) {
@@ -1340,245 +1307,154 @@ function findBestInventoryMatch(input, inventoryItems) {
 }
 
 
+// Re-added retrieval (needed by onInput_ACS & onOutput_ACS)
+function retrieveInvFromSC(){
+  const invSC = storyCards.find(sc => sc.title === "Player Inventory");
+  if(!invSC) return;
+  const lines = (invSC.entry||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const temp = [];
+  lines.forEach(line=>{
+    let m = line.match(/^(.*?)\s*\(\s*amt\s*:\s*(\d+(?:\.\d+)?)\s*\)$/i) ||
+            line.match(/^(.*?)\s*\(\s*(\d+(?:\.\d+)?)\s*\)$/i);
+    if(!m) return;
+    let name = m[1].trim();
+    let qty  = Number(m[2]);
+    if(!name || !(qty>0)) return;
+    // Strip any leading spelled/digit quantity that crept into display
+    name = wordsToNumber(name).replace(/^\d+\s+(?:of\s+)?/i,'').trim();
+    temp.push({ name, qty });
+  });
+
+  // Root consolidation
+  const byRoot = Object.create(null);
+  temp.forEach(({name,qty})=>{
+    const root = normalizeItemRoot(name);
+    if(!root) return;
+    if(!byRoot[root]){
+      byRoot[root] = { display: deriveDisplayName(name).replace(/s\b/i,''), qty: 0 };
+    }
+    byRoot[root].qty += qty;
+  });
+
+  state.playerInv.item = Object.values(byRoot).map(o=>o.display);
+  state.playerInv.amt  = Object.values(byRoot).map(o=>o.qty);
+}
+
 ///////////////////////////START OF WEAPON EQUIP DETECTION///////////////////////////////////////
   //Detects equip/unequip commands and updates the Equipped Weapon story card.
   
 function detectWeaponEquip(text) {
-    // Normalize input for matching
-    let cleanText = text.toLowerCase();
+  let lowerFull = text.toLowerCase();
+  // Fast exit if no relevant verbs
+  if(!/\b(equip|draw|ready|wield|hold|unsheath|arm|holster|sheath|put away|stow|return|unequip)\b/.test(lowerFull)){
+    return text;
+  }
 
-    // Get inventory items from Player Inventory story card
-    const invSC = storyCards.find(sc => sc.title === "Player Inventory");
-    let inventoryItems = [];
-    if (invSC && invSC.entry) {
-        let matches = invSC.entry.matchAll(/(.+?)\s*\(.*?(\d+(?:\.\d+)?).*?\)/g);
-        for (const match of matches) {
-            let itemName = match[1].replace(/\b(the|a|an|my|your)\b/gi, '').trim().toLowerCase();
-            inventoryItems.push(itemName);
-        }
+  // Pull current equipped (cache)
+  let equippedWeapon = state.equippedWeapon || retrieveEquippedWeaponFromSC();
+  if (equippedWeapon && typeof equippedWeapon !== "string") equippedWeapon = null;
+
+  // Build inventory item list (normalized) once
+  const invSC = storyCards.find(sc => sc.title === "Player Inventory");
+  let inventoryItems = [];
+  if (invSC && invSC.entry){
+    for (const m of invSC.entry.matchAll(/(.+?)\s*\(.*?(\d+(?:\.\d+)?).*?\)/g)){
+      inventoryItems.push(m[1].replace(/\b(the|a|an|my|your)\b/gi,'').trim().toLowerCase());
     }
+  }
+  // Weapon card names (normalized)
+  const weaponNames = getWeaponNamesFromStoryCards();
 
-    // Get weapon names from weapon story cards
-    let weaponNames = getWeaponNamesFromStoryCards();
+  // Regexes
+  const unequipRe = /\b(unequip|holster|put away|stow|sheath|return|disarm)\b/;
+  const equipRe = /\b(equip|draw|ready|wield|hold|unsheath|arm)\s+(?:my|the|your)?\s*([\w\s\-']{2,60})/i;
 
-    // Check for equip/unequip commands
-    let equipCmd = /(equip|draw|ready|wield|hold|unsheath|arm)\s+([\w\s\-']+)/i;
-    let unequipCmd = /(unequip|holster|put away|stow|sheath|disarm|return)\s+(?:my|your)?\s*([\w\s\-']+)?/i;
+  // Split clauses preserving order of intent
+  const clauses = text.split(/(?:\band\b|,|;)/i).map(c=>c.trim()).filter(Boolean);
 
-    let equippedWeapon = retrieveEquippedWeaponFromSC();
-if (!equippedWeapon || typeof equippedWeapon !== "string" || equippedWeapon.trim() === "") {
-  // Handle the case where no weapon is equipped
-  equippedWeapon = null;
-}
+  clauses.forEach(clause=>{
+    const lower = clause.toLowerCase();
 
-    // Handle unequip
-    if (unequipCmd.test(cleanText)) {
+    // 1) Unequip / holster
+    if (unequipRe.test(lower)){
+      if (equippedWeapon){
         storeEquippedWeaponToSC("");
         state.equippedWeapon = null;
-        state.msgHolder += `You put away your weapon.\n`;
-        return text;
+        state.msgHolder += `You put away your ${equippedWeapon}.\n`;
+        equippedWeapon = null;
+      } else {
+        state.msgHolder += "You have no weapon equipped to put away.\n";
+      }
+      // continue to next clause (don’t return)
+      return;
     }
 
-    // Handle equip
-    let equipMatch = cleanText.match(equipCmd);
-    if (equipMatch) {
-        let inputWeapon = equipMatch[2].trim().toLowerCase();
-        // Fuzzy match inventory item to weapon card
-        let bestMatch = findBestInventoryMatch(inputWeapon, inventoryItems.filter(item =>
-            weaponNames.some(w => item.includes(w) || w.includes(item))
-        ));
-        if (bestMatch) {
-            // Find the matching weapon card name
-            let matchedWeapon = weaponNames.find(w => bestMatch.includes(w) || w.includes(bestMatch));
-            if (matchedWeapon) {
-                storeEquippedWeaponToSC(matchedWeapon);
-                state.equippedWeapon = matchedWeapon;
-                state.msgHolder += `You equip your ${matchedWeapon}.\n`;
-                return text;
-            }
-        }
-         state.msgHolder += `You do not have that weapon in your inventory.\n`;
-        text += " You do not have that weapon in your inventory.";
-        return text;
-    }
+    // 2) Equip / draw
+    const m = clause.match(equipRe);
+    if (m){
+      let rawName = m[2].trim().toLowerCase();
+      // Trim trailing filler adverbs
+      rawName = rawName.replace(/\b(now|quickly|slowly|carefully|properly|securely)\b/g,'').trim();
+      if(!rawName) return;
 
-    return text;
+      // Fuzzy match against inventory items that correspond to weapon cards
+      const candidateInv = inventoryItems.filter(it =>
+        weaponNames.some(w => it.includes(w) || w.includes(it))
+      );
+      const bestInventoryMatch = findBestInventoryMatch(rawName, candidateInv);
+
+      if (!bestInventoryMatch){
+        state.msgHolder += "You do not have that weapon in your inventory.\n";
+        return;
+      }
+
+      // Map to actual weapon card title
+      const matchedWeapon = weaponNames.find(w => bestInventoryMatch.includes(w) || w.includes(bestInventoryMatch));
+      if (!matchedWeapon){
+        state.msgHolder += "That item isn’t a recognized weapon card.\n";
+        return;
+      }
+
+      // Equip
+      storeEquippedWeaponToSC(matchedWeapon);
+      state.equippedWeapon = matchedWeapon;
+      equippedWeapon = matchedWeapon;
+      state.msgHolder += `You equip your ${matchedWeapon}.\n`;
+    }
+  });
+
+  return text;
 }
 
 ///////////////////////////END OF WEAPON EQUIP DETECTION///////////////////////////////////////
 
 
-//Function to get plr race
-function getPlrRace(){
-  const plotEssentials = (state.memory && typeof state.memory.context === "string")
-    ? state.memory.context.toLowerCase()
-    : "";
-  
-  // Default race to human
-  let race = "human";
-
-  //Get plr race from PE
-  raceNames.forEach(name => {
-    if(plotEssentials.includes(name.toLowerCase() + " race")){
-      race = name.toLowerCase();
-    }
-  });
-
-  // Remove spaces in race name
-  race = race.replace(/\s+/g, '');
-
-  return race;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-
-const raceMods = {
-  human: {
-    lvlMod: 0,
-    hpMod: 0,
-    cpMod: 0,
-    epMod: 0,
-    atkMod: 0,
-    ratkMod: 0,
-    defMod: 0,
-    spdMod: 0,
-    lckMod: 0,
-    intlMod: 0
-  },
-  
-};
-
-modKeys = ["lvlMod", "hpMod", "cpMod", "epMod", "atkMod", "ratkMod", "defMod", "spdMod", "lckMod", "intlMod"];
-raceNames = ["Human"];
-statKeysForMod = ["lvl", "hp", "cp", "ep", "atk", "ratk", "def", "spd", "lck", "intl"];
-
-
-//CREATE new sc with player Modifiers if sc doesnt exist
-function createIfNoModifierSC(){
-  if (!storyCards.find(sc => sc.title === "Player Modifiers")) {
-    // If "Player Modifiers" card doesn't exist, create it
-    addStoryCard("Player Modifiers", "Blank", "Player Stats");
-
-    plrRace = getPlrRace();
-
-    // Fetch the "Player Modifiers" card
-    const modSC = storyCards.find(sc => sc.title === "Player Modifiers");
-    modSC.description = `Format for Modifying: Modifier: num\nModifiers influence your starting stats.\nYour race is ${capitalizeFirst(plrRace)}.`;
-
-    //Set player modifier values in SC based on their race
-    modKeys.forEach(key => {
-      state.playerModifiers[key] = raceMods[plrRace][key];
-    });
-
-    // Apply initial race mods to stats and display them to sc
-    statKeysForMod.forEach(key => {
-      // Modify normal stat
-      temp1 =  state.playerStats[key] * state.playerModifiers[key + "Mod"]/100;
-      state.playerStats[key] = state.playerStats[key] + temp1;
-      state.playerStats[key] = Math.round(state.playerStats[key] * 100) / 100;
-
-      // Modify max stats
-      maxKey = "max" + capitalizeFirst(key);
-      temp2 = state.playerStats[maxKey] * state.playerModifiers[key + "Mod"]/100;
-      state.playerStats[maxKey] = state.playerStats[maxKey] + temp2;
-      state.playerStats[maxKey] = Math.round(state.playerStats[maxKey] * 100) / 100;
-
-    });
-
-    storeStatsToSC();
-  }
-}
-
-//STORES and displays the modifiers to player in sc
-function storeModifiersToSC(){
-  //Format player modifiers holder for SC 
-  formatForSC = [];
-  
-  modKeys.forEach((key, index) => {
-    const modName = key.replace("Mod","").toUpperCase();  //ATK
-    const modFormatPart = `${modName} Modifier: ${state.playerModifiers[key]}%\n`; //ATK Modifier: 0%
-
-    //Holder to hold all formatted strings
-    formatForSC.push(modFormatPart);
-  });
-  //log(formatForSC);
-
-  // Fetch the "Player Modifiers" card
-   const modSC = storyCards.find(sc => sc.title === "Player Modifiers");
-  if (!modSC) {
-    log('Player Modifiers story card not found!');
-    return;
-  }
-
-  //Convert holder to string, clean commas, and finally store to sc entry
-  modSC.entry = String(formatForSC).replace(/,/g, '');
-
-  // Trim notes on char limit to prevent memory overfill
-  if (modSC.description.length > 3000) {
-    halfIndex = Math.floor(modSC.description.length / 2);
-    modSC.description = modSC.description.slice(0, halfIndex);
-
-    console.log("Trimming modSC description to prevent memory overload.");
-  }
-}
-
-//RETRIEVE data from sc and store to playerModifiers
-function retrieveModifiersFromSC(){
-  // Fetch the "Player Modifiers" card
-  const modSC = storyCards.find(sc => sc.title === "Player Modifiers");
-  if (!modSC) {
-    log('Player Modifiers story card not found!');
-    return;
-  }
-  // Retrieve and split sc entry into (modName, value) lines
-  const modEntries = (modSC.entry || "").split("\n"); //arr of strings
-
-  //Loop through each line of entry from the split and extract values
-  modEntries.forEach(entry => {
-      // Match and extract stat and max stat values using regex
-      const match = entry.trim().match(/^([A-Z]+)\s+Modifier:\s*(-?\d+(?:\.\d+)?)(?:%)?$/);
-      if (match) {
-        const modName = match[1].toLowerCase() + 'Mod';
-        const modValue = Number(match[2]);
-        state.playerModifiers[modName] = (modValue ?? state.playerModifiers[modName]);
-      }
-  });
-}
-
 /////////////////////////////////////////////////////////////////////////////////////
 
 
-maxStatKeys = ["maxLvl", "maxHp", "maxCp", "maxEp", "maxAtk", "maxRatk", "maxDef", "maxSpd", "maxLck", "maxIntl"];
-statKeys = ["lvl", "hp", "cp","ep", "atk", "ratk", "def", "spd", "lck", "intl"];
-
-
+const maxStatKeys = ["maxLvl", "maxCp", "maxEp", "maxAtk", "maxRatk", "maxIntl"];
+const statKeys = ["lvl", "cp", "ep", "atk", "ratk", "intl"];
 //NOTE: Players stats will be stored in a sc. CREATE initial stats. RETRIEVE from or STORE to player stats: SC -> <- state.playerstats
 
 //Function to create new random player stats
 function newPlayerStats(){  
-  //Get a random max level
   state.playerStats.maxLvl = randomInt(2,30);
 
-  //Loop through each maxstat, and set max stats equal to max level
   maxStatKeys.forEach((mStat) => {
     state.playerStats[mStat] = state.playerStats.maxLvl;
   });
-  
-  //Give player random initialized stats capped by max level
+
   statKeys.forEach((stat) => {
-    state.playerStats[stat] = randomInt(1,state.playerStats.maxLvl);
+    if (stat !== "lvl") state.playerStats[stat] = randomInt(1,state.playerStats.maxLvl);
   });
-  
+
   // Stat scaling
-  state.playerStats.maxHp = state.playerStats.maxLvl * 2 + 20;
   state.playerStats.maxEp = state.playerStats.maxLvl * 2 + 80;
   state.playerStats.maxCp = (state.playerStats.maxLvl * 1.5) + (state.playerStats.intl * 2) + 80;
 
-  // Player starts at full health
-  state.playerStats.hp = state.playerStats.maxHp;
+  // Start at full EP; CP starts at 0
   state.playerStats.ep = state.playerStats.maxEp;
-  
-
+  state.playerStats.cp = 0;
 }
 
 //CREATE new sc with random playerstats if sc doesnt exist
@@ -1600,43 +1476,21 @@ function createIfNoStatSC(){
 
 // STORES and displays the stats to player in sc
 function storeStatsToSC(){
-  // Format player stats holder for SC 
-  formatForSC = [];
-  
-  maxStatKeys.forEach((key, index) => {
-    // Lvl storing exception
-    if (key == "maxLvl") {
-      statFormatPart = `LVL ${state.playerStats.maxLvl}\n`
+  const lines = [];
+  maxStatKeys.forEach(key=>{
+    if (key === "maxLvl") {
+      lines.push(`LVL ${state.playerStats.maxLvl}\n`);
+    } else {
+      const statName = key.substring(3).toUpperCase();
+      lines.push(`${statName}: ${state.playerStats[statName.toLowerCase()]}/${state.playerStats[key]}\n`);
     }
-    else {
-      // Remove 'max' and capitalize. Ex: maxAtk -> ATK
-      statName = key.substring(3).toUpperCase();
-
-      // Formatted stat line. Ex: ATK: atk/maxAtk
-      statFormatPart = `${statName}: ${state.playerStats[statName.toLowerCase()]}/${state.playerStats[key]}\n`;
-    }
-
-    // Push to holder for holding all formatted strings
-    formatForSC.push(statFormatPart);
   });
-  //log(formatForSC);
-
-  // Fetch the "Player Stats" card
   const statSC = storyCards.find(sc => sc.title === "Player Stats");
-  if (!statSC) {
-    log('Player Stats story card not found!');
-    return;
-  }
-
-  // Convert holder to string, clean commas, and finally store to sc entry
-  statSC.entry = String(formatForSC).replace(/,/g, '');
-
-  // Trim notes on char limit to prevent memory overfill
-  if (statSC.description.length > 3000) {
-    halfIndex = Math.floor(statSC.description.length / 2);
+  if (!statSC) return;
+  statSC.entry = lines.join("");
+  if (statSC.description.length > 3000){
+    const halfIndex = Math.floor(statSC.description.length/2);
     statSC.description = statSC.description.slice(0, halfIndex);
-
-    console.log("Trimming statSC description to prevent memory overload.");
   }
 }
 
@@ -1644,14 +1498,10 @@ function storeStatsToSC(){
 function retrieveStatsFromSC(){
   const statMappings = {
     //lvl: 'maxLvl',
-    hp: 'maxHp',
     cp: 'maxCp',
     ep: 'maxEp',
     atk: 'maxAtk',
     ratk: 'maxRatk',
-    def: 'maxDef',
-    spd: 'maxSpd',
-    lck: 'maxLck',
     intl: 'maxIntl',
   };
   
@@ -1698,166 +1548,52 @@ function retrieveStatsFromSC(){
 
 // Function to increment the player's stats
 function statUp(statName,incAmt){
-  // Ensure incAmt is a number
-  if(typeof incAmt !== "number"){
-    incAmt = 0;
-  }
-  incAmt = Number(incAmt);
-  incAmt = Math.round(incAmt * 100) / 100;
-  log("incAmt: " + incAmt + " " + statName);
+  if(typeof incAmt !== "number"){ incAmt = 0; }
+  incAmt = Math.round(Number(incAmt) * 100) / 100;
 
-  //Intialize incAmt trackers for logging
-  let preModIncAmt = incAmt;
-  let scaledIncAmt = incAmt;
+  const maxStatName = "max" + statName.charAt(0).toUpperCase() + statName.slice(1);
+  const stat = state.playerStats[statName];
 
-  //Race modifiers influence stat gains (apply ONCE)
-  const plrRace = getPlrRace();
-  let temp = incAmt * state.playerModifiers[statName+'Mod']/100;
-  //Multiply temp by negative to ensure modifiers dont modify oppositely when incAmt is negative
-  if(incAmt < 0){
-    temp = temp * -1;
-  }
-  incAmt = incAmt + temp;
-  incAmt = Math.round(incAmt * 100) / 100;
-  preModIncAmt = incAmt;
-  scaledIncAmt = incAmt;
-  log("Race modded incAmt: " + incAmt + " " + statName);
+  // Gauges: CP and EP
+  if(statName === "cp" || statName === "ep"){
+    state.playerStats[statName] = Math.round((state.playerStats[statName] + incAmt) * 100) / 100;
 
-  //Get maxstat string key Ex: maxATK
-  maxStatName = "max" + statName.charAt(0).toUpperCase() + statName.slice(1);
-  
-  //Save current stat
-  stat = state.playerStats[statName];
-  log("stat: " + stat);
-
-  // Exception: Extra hp,cp,ep shouldnt lvl up player, simply increment available value
-  if(statName == "hp" || statName == "cp" || statName == "ep"){
-    state.playerStats[statName] += incAmt;
-
-    //Only two decimal places
-    state.playerStats[statName] = Math.round(state.playerStats[statName] * 100) / 100;
-
-    // Only clamp hp and ep, allow cp (corruption) to exceed max for possession/game over logic
-  if ((statName === "hp" || statName === "ep") && state.playerStats[statName] > state.playerStats[maxStatName]) {
-      state.playerStats[statName] = state.playerStats[maxStatName];
-  }
-
-  // Prevent CP from falling below 0
-  if (statName === "cp" && state.playerStats.cp < 0) {
+    if (statName === "ep" && state.playerStats.ep > state.playerStats[maxStatName]) {
+      state.playerStats.ep = state.playerStats[maxStatName];
+    }
+    if (statName === "cp" && state.playerStats.cp < 0) {
       state.playerStats.cp = 0;
-  }
-
-  // --- Game Over if CP exceeds max ---
+    }
     if (state.playerStats.cp > state.playerStats.maxCp) {
-    state.gameOver = true;
+      state.gameOver = true;
     }
-  
-    // Fetch the "Player Stats" card and log stat changes in description
+
     const statSC = storyCards.find(sc => sc.title === "Player Stats");
+    const sign = incAmt >= 0 ? "⬆️" : "🔻";
+    statSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]} (Δ ${incAmt})\n` + statSC.description;
+    state.msgHolder += `${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]}\n`;
+  } else {
+    // Non-gauges: ATK, RATK, INTL
+    const scaledIncAmt = Math.round((incAmt * (1.32 * Math.exp(-0.02 * stat))) * 100) / 100;
+    const newStat = Math.round((stat + scaledIncAmt) * 100) / 100;
+    state.playerStats[statName] = Math.min(newStat, state.playerStats[maxStatName]);
 
-    if (incAmt >= 0) { sign = "⬆️" }
-    if (incAmt < 0) { sign = "🔻" }
-
-    statSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]} (Modded: ${incAmt}, Raw: ${preModIncAmt})\n` + statSC.description;
-
-    state.msgHolder = state.msgHolder + `${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]}\n`;
-    }
-    else{
-    //Formula which decreases value of exp the higher your level and gets the new stat value after exp gain. (stat + incAmt*PercentReduction)
-    //New stat after exp scaling formula
-    newStat = stat + incAmt * (1.32 * Math.exp(-0.02 * stat));
-
-    // Get scaled incAmt for logging
-    scaledIncAmt = incAmt * (1.32 * Math.exp(-0.02 * stat));
-    scaledIncAmt = Math.round(scaledIncAmt*100)/100;
-    log("scaledIncAmt: " + scaledIncAmt);
-
-    // Two decimal places only
-    newStat = Math.round(newStat * 100) / 100;
-    log("newStat: " + newStat);
-    // todo: fix rounding at very high levels
-    // Update the player stat to its new stat
-    state.playerStats[statName] = newStat;
-
-
-    // Fix stat to not pass maxstat
-    if(state.playerStats[statName] > state.playerStats[maxStatName]){
-      state.playerStats[statName] = state.playerStats[maxStatName];
-    };
-
-    // Fetch the "Player Stats" card and log stat changes in description
     const statSC = storyCards.find(sc => sc.title === "Player Stats");
-
-    if (incAmt >= 0) { sign = "⬆️" }
-    if (incAmt < 0) { sign = "🔻" }
-
-    statSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]} (Scaled: ${scaledIncAmt}, Modded: ${incAmt}, Raw: ${preModIncAmt})\n` + statSC.description;
-
+    const sign = incAmt >= 0 ? "⬆️" : "🔻";
+    statSC.description = `Log ${state.turnCount} | ${statName.toUpperCase()} ${sign} :  ${stat} → ${state.playerStats[statName]} (Scaled Δ ${scaledIncAmt})\n` + statSC.description;
   }
 
   storeStatsToSC(); 
 }
-
 function playerNaturalRegen(){
-  //Player regens only if alive
-  if(state.playerStats.hp > 0){
-    statUp("hp",1);
-    statUp("cp",-2);
-
-    //Player loses available energy only
-    if(state.playerStats.ep > 0){
-      statUp("ep",-1 * randomFloat(0,1));
-    }
+  // Corruption recovery and minor EP drain
+  statUp("cp",-2);
+  if(state.playerStats.ep > 0){
+    statUp("ep",-1 * randomFloat(0,1));
   }
- 
 }
 
-//Edit text to show player health
-function warnPlayerHealth(text){
-  plrHealth = state.playerStats.hp;
-  plrMaxHealth = state.playerStats.maxHp; 
-  plrEnergy = state.playerStats.ep;
-  plrMaxEnergy = state.playerStats.maxEp;
-  numTurnsDisplay = 5;
-  
-  //warn player every 5 inputs, they have half health
-  if((plrHealth/plrMaxHealth) >= 0.45 && (plrHealth/plrMaxHealth) <= 0.50 && state.inputCount % numTurnsDisplay === 0){
-    text = text + ` ${realizePhrases[randomInt(0,realizePhrases.length-1)]} ${healthFeelsHalfway[randomInt(0,healthFeelsHalfway.length-1)]}.`;
-  }
-  //Warns at 1% to 10% health
-  else if((plrHealth/plrMaxHealth) >= 0.01 && (plrHealth/plrMaxHealth) <= 0.10 && state.inputCount % numTurnsDisplay === 0){
-    text = text + ` ${realizePhrases[randomInt(0,realizePhrases.length-1)]} ${healthVeryLow[randomInt(0,healthVeryLow.length-1)]}.`;
-  }
 
-  //Player Death at 0%
-  if(plrHealth <= 0 && state.inputCount % 2 === 0){
-    text = text + ` Suddenly, ${healthDeathArray[randomInt(0,healthDeathArray.length-1)]} The world continues without you.`;
-
-    state.msgHolder = state.msgHolder + `GAME OVER. You died!\n`;
-  }
-
-
-  //Warns every 5 input, at 50% energy
-  if((plrEnergy/plrMaxEnergy) >= 0.45 && (plrEnergy/plrMaxEnergy) <= 0.50 && state.inputCount % numTurnsDisplay === 0){
-    text = text + ` ${realizePhrases[randomInt(0,realizePhrases.length-1)]} ${halfEnergyArray[randomInt(0,halfEnergyArray.length-1)]}`;
-  }
-  //Warns at 1% to 10% energy
-  else if((plrEnergy/plrMaxEnergy) >= 0.01 && (plrEnergy/plrMaxEnergy) <= 0.10 && state.inputCount % numTurnsDisplay === 0){
-    text = text + ` ${realizePhrases[randomInt(0,realizePhrases.length-1)]} ${exhaustedArray[randomInt(0,exhaustedArray.length-1)]}`;
-
-    state.msgHolder = state.msgHolder + `Your energy is very low. You may want to rest or eat.\n`
-
-  }
-  
-  //No energy at 0%
-  if(plrEnergy <= 0 && state.inputCount % 5 === 0){
-    text = text + ` Suddenly, ${exhaustionSleepArray[randomInt(0,exhaustionSleepArray.length-1)]}`; 
-
-    state.msgHolder = state.msgHolder + `You have no energy! Recover by consuming or sleeping.\n`
-  }
-
-  return text;
-}
 
 //create a Player Injuries story card if it doesn't exist
 function createIfNoInjurySC() {
@@ -1873,10 +1609,364 @@ function createIfNoInjurySC() {
   }
   return injSC;
 }
+
+// ===== MULTI-SUIT ARMOR SYSTEM =====
+
+// Ensure Equipped Armor SC exists
+function createIfNoEquippedArmorSC() {
+  if (!storyCards.find(sc => sc.title === "Equipped Armor")) {
+    addStoryCard("Equipped Armor", "Currently equipped armor suit.", "Equipped Gear");
+    const eq = storyCards.find(sc => sc.title === "Equipped Armor");
+    eq.description = "Edit this to switch armor manually. Must exactly match an Armor card title.";
+    eq.entry = "Unarmoured";
+  }
+}
+
+// Read equipped armor name
+function retrieveEquippedArmorName() {
+  const eq = storyCards.find(sc => sc.title === "Equipped Armor");
+  return eq && eq.entry ? eq.entry.trim() : "Unarmoured";
+}
+
+// Store equipped armor name
+function storeEquippedArmorName(name) {
+  createIfNoEquippedArmorSC();
+  const eq = storyCards.find(sc => sc.title === "Equipped Armor");
+  eq.entry = name || "Unarmoured";
+}
+
+/* === Armor Canonicalization Helpers (dedupe armor cards) === */
+function normalizeArmorName(raw){
+  /*
+    Improved canonical normalizer (Nova 2025-08-16)
+    Fixes cases like:
+      "a set of scout armor" -> "scout"
+      "put on a suit of adaptive ceramite armor" -> "adaptive ceramite"
+      "the ancient suit of plated armor" -> "ancient plated"
+    Approach:
+      1) Strip wrapper patterns "(a) (set|suit|armor|armour) of" entirely so the dangling "of" doesn’t remain.
+      2) Remove articles/pronouns.
+      3) Remove generic armor nouns.
+      4) Remove a leading solitary "of" if it still survives (rare edge cases).
+      5) Collapse whitespace and fallback to 'unarmoured' if empty.
+  */
+  if(!raw) return "";
+  let s = raw.toLowerCase();
+
+  // Normalize punctuation to spaces
+  s = s.replace(/[^a-z0-9\s]/g," ");
+
+  // Remove wrapper constructs like "a set of", "set of", "suit of", "armor of"
+  // (includes optional leading article 'a')
+  s = s.replace(/\b(a\s+)?(set|suit|armor|armour)\s+of\s+/g," ");
+
+  // Remove articles/pronouns
+  s = s.replace(/\b(my|the|a|an|your|this|that|these|those|some)\b/g," ");
+
+  // Remove remaining generic armor terms
+  s = s.replace(/\b(armor|armour|suit|set)\b/g," ");
+
+  // If a leading 'of' still survives (e.g. exotic patterns), drop it
+  s = s.replace(/^\s*of\b/," ");
+
+  // Collapse whitespace
+  s = s.replace(/\s+/g," ").trim();
+
+  if(!s) s = "unarmoured";
+  return s;
+}
+
+// Find armor card by CanonicalName: line
+function findArmorCardByCanonical(canon){
+  if(!canon) return null;
+  return storyCards.find(sc =>
+    (sc.category === "Armor" || /armor/i.test(sc.category||"")) &&
+    sc.entry && new RegExp(`^CanonicalName:\\s*${canon}\\b`,'im').test(sc.entry)
+  ) || null;
+}
+
+// Ensure CanonicalName line exists at top
+function ensureArmorCardCanonicalLine(sc, canon){
+  if(!sc || !canon) return;
+  if(!/^\s*CanonicalName:/im.test(sc.entry||"")){
+    sc.entry = `CanonicalName: ${canon}\n` + sc.entry;
+  }
+}
+
+/* One-time migration (adds CanonicalName to existing armor cards) */
+function migrateArmorCardsAddCanonical(){
+  storyCards.filter(sc => sc.category === "Armor").forEach(sc=>{
+    // Derive tentative name line
+    let nameLine = (sc.entry.match(/^Armor:\s*(.+)$/im)||[])[1] || sc.title;
+    const canon = normalizeArmorName(nameLine)||"unarmoured";
+    ensureArmorCardCanonicalLine(sc, canon);
+  });
+}
+
+function getOrCreateArmorCard(name) {
+  name = (name && name.trim()) ? name.trim() : "Unarmoured";
+  const canon = normalizeArmorName(name) || "unarmoured";
+
+  // Primary lookup by CanonicalName
+  let sc = findArmorCardByCanonical(canon);
+  if (sc) {
+    ensureArmorCardCanonicalLine(sc, canon);
+    return sc;
+  }
+
+  // Secondary: title match (legacy)
+  sc = storyCards.find(sc => sc.title.toLowerCase() === name.toLowerCase());
+  if (!sc) {
+    addStoryCard(name, "Armor & shield status.", "Armor");
+    sc = storyCards.find(s => s.title === name);
+    sc.description = "Format:\nArmor: Name\nShield: current/max (State)\nDirected Energy: Class N\nThermal: Class N\nKinetic: Class N\nPsychic: Class N\nSonic: Class N\nOther: Class N\n--\nDamage Log:\n(Recent first)";
+    sc.entry =
+      `CanonicalName: ${canon}\n` +
+      `Armor: ${name}\n` +
+      `Shield: 0/0 (None)\n` +
+      `Directed Energy: Class 0\n` +
+      `Thermal: Class 0\n` +
+      `Kinetic: Class 0\n` +
+      `Psychic: Class 0\n` +
+      `Sonic: Class 0\n` +
+      `Other: Class 0\n--\nDamage Log:\n`;
+  } else {
+    ensureArmorCardCanonicalLine(sc, canon);
+  }
+  return sc;
+}
+
+// Retrieve current suit into state.armor
+function retrieveArmorFromSC() {
+  const equipped = retrieveEquippedArmorName();
+  const sc = getOrCreateArmorCard(equipped);
+  if (!sc.entry) return;
+
+  state.armor = state.armor || {
+    name: equipped,
+    resist: { directed:0, thermal:0, kinetic:0, psychic:0, sonic:0, other:0 },
+    shield: { charge:0, max:0, inRegen:false, regenDelay:2, regenRate:20, regenCD:0 },
+    damageLog: []
+  };
+  state.armor.name = equipped;
+
+  const lines = sc.entry.split(/\r?\n/);
+  lines.forEach(line => {
+    let m;
+    if ((m = line.match(/^Armor:\s*(.+)$/i))) {
+      state.armor.name = m[1].trim();
+    } else if ((m = line.match(/^Shield:\s*(\d+)\s*\/\s*(\d+)/i))) {
+      state.armor.shield.charge = Number(m[1]);
+      state.armor.shield.max = Number(m[2]);
+      if (state.armor.shield.charge > state.armor.shield.max) state.armor.shield.charge = state.armor.shield.max;
+    } else if ((m = line.match(/^Directed Energy:\s*Class\s*(\d+)/i))) {
+      state.armor.resist.directed = Number(m[1]);
+    } else if ((m = line.match(/^Thermal:\s*Class\s*(\d+)/i))) {
+      state.armor.resist.thermal = Number(m[1]);
+    } else if ((m = line.match(/^Kinetic:\s*Class\s*(\d+)/i))) {
+      state.armor.resist.kinetic = Number(m[1]);
+    } else if ((m = line.match(/^Psychic:\s*Class\s*(\d+)/i))) {
+      state.armor.resist.psychic = Number(m[1]);
+    } else if ((m = line.match(/^Sonic:\s*Class\s*(\d+)/i))) {
+      state.armor.resist.sonic = Number(m[1]);
+    } else if ((m = line.match(/^Other:\s*Class\s*(\d+)/i))) {
+      state.armor.resist.other = Number(m[1]);
+    } else if ((m = line.match(/^Shield Regen Delay:\s*(\d+)/i))) {
+      state.armor.shield.regenDelay = Number(m[1]);
+    } else if ((m = line.match(/^Shield Regen Rate:\s*(\d+)/i))) {
+      state.armor.shield.regenRate = Number(m[1]);
+    }
+  });
+
+  // Safety defaults if missing
+  const sh = state.armor.shield;
+  if (typeof sh.regenDelay !== "number" || isNaN(sh.regenDelay)) sh.regenDelay = 2;
+  if (typeof sh.regenRate !== "number"  || isNaN(sh.regenRate))  sh.regenRate  = 20;
+  if (typeof sh.regenCD !== "number"    || isNaN(sh.regenCD))    sh.regenCD    = 0;
+}
+
+
+// Store state.armor back to its suit card
+function storeArmorToSC() {
+  const equipped = retrieveEquippedArmorName();
+  const sc = getOrCreateArmorCard(equipped);
+  const oldEntry = sc.entry || "";
+  const a = state.armor || {};
+  const r = a.resist || {};
+  const sh = a.shield || {};
+
+  sh.regenDelay = (typeof sh.regenDelay === "number") ? sh.regenDelay : 2;
+  sh.regenRate  = (typeof sh.regenRate === "number")  ? sh.regenRate  : 20;
+  sh.regenCD    = (typeof sh.regenCD === "number")    ? sh.regenCD    : 0;
+
+  let stateLabel;
+  if (sh.max <= 0) stateLabel = "(None)";
+  else if (sh.inRegen && sh.regenCD > 0) stateLabel = "(Cooldown)";
+  else if (sh.inRegen && sh.regenCD === 0) stateLabel = "(Regen)";
+  else stateLabel = "(Ready)";
+
+  const shieldLine = sh.max > 0
+    ? `Shield: ${Math.max(0, Math.round(sh.charge))}/${sh.max} ${stateLabel}`
+    : "Shield: 0/0 (None)";
+
+  // Preserve or reconstruct canonical line
+  const existingCanon = (oldEntry.match(/^CanonicalName:\s*(.+)$/im)) ? RegExp.$1.trim() : null;
+  const canon = existingCanon || normalizeArmorName(a.name || equipped) || "unarmoured";
+
+  // Collect unknown / future meta lines (above first --)
+  const knownMetaRegexes = [
+    /^CanonicalName:/i,
+    /^Armor:/i,
+    /^Shield:/i,
+    /^Shield Regen Delay:/i,
+    /^Shield Regen Rate:/i,
+    /^Directed Energy:/i,
+    /^Thermal:/i,
+    /^Kinetic:/i,
+    /^Psychic:/i,
+    /^Sonic:/i,
+    /^Other:/i,
+    /^Damage Log:/i,
+    /^--$/i
+  ];
+  const linesRaw = oldEntry.split(/\r?\n/);
+  const sepIndex = linesRaw.findIndex(l => /^--$/i.test(l.trim()));
+  const headerSlice = sepIndex === -1 ? linesRaw : linesRaw.slice(0, sepIndex);
+  const preservedUnknown = headerSlice
+    .map(l => l.trim())
+    .filter(l =>
+      l.length &&
+      !knownMetaRegexes.some(rx => rx.test(l))
+    );
+
+  const lines = [
+    `CanonicalName: ${canon}`,
+    `Armor: ${a.name || equipped}`,
+    ...preservedUnknown,          // preserved custom metadata (if any)
+    shieldLine,
+    `Shield Regen Delay: ${sh.regenDelay}`,
+    `Shield Regen Rate: ${sh.regenRate}`,
+    `Directed Energy: Class ${r.directed ?? 0}`,
+    `Thermal: Class ${r.thermal ?? 0}`,
+    `Kinetic: Class ${r.kinetic ?? 0}`,
+    `Psychic: Class ${r.psychic ?? 0}`,
+    `Sonic: Class ${r.sonic ?? 0}`,
+    `Other: Class ${r.other ?? 0}`,
+    `--`,
+    `Damage Log:`
+  ];
+
+  if (Array.isArray(a.damageLog)) {
+    a.damageLog.slice(0, 20).forEach(entry => lines.push(entry));
+  }
+
+  sc.entry = lines.join("\n");
+}
+
+
+
+// Detect armor equip/unequip commands
+function detectArmorEquip(text) {
+  if (isPlayerDialoguing(text)) return text;
+  const lower = text.toLowerCase();
+
+  // Unequip patterns
+  if (/(?:unequip|remove|take off|doff|stow)\s+(?:my|the|your)?\s*(armor|armour|suit|set)/i.test(lower)) {
+    storeEquippedArmorName("Unarmoured");
+    state.armor.name = "Unarmoured";
+    state.msgHolder += "You remove your armor.\n";
+    return text;
+  }
+
+  // Match equip phrases
+  const m = lower.match(/\b(equip|don|wear|put on)\s+(?:my|the|your)?\s*([\w\- ]{2,80})/i);
+  if (!m) return text;
+
+  // Raw phrase AFTER the verb (keep generic word for title)
+  let fullPhrase = m[2].trim();
+
+  // Remove trailing filler words
+  fullPhrase = fullPhrase.replace(/\b(now|quickly|slowly|carefully|properly|securely)\b/gi, '').trim();
+
+  // Remove leading determiners/pronouns inside the captured phrase (if any slipped through)
+  fullPhrase = fullPhrase.replace(/^(my|the|your|this|that|these|those|some)\s+/i, '').trim();
+
+  if (!fullPhrase) fullPhrase = "Unarmoured";
+
+  // Canonical key (strips generic terms)
+  const canon = normalizeArmorName(fullPhrase) || "unarmoured";
+
+  // Reuse existing card if any
+  let existing = findArmorCardByCanonical(canon);
+  if (existing) {
+    storeEquippedArmorName(existing.title);
+    retrieveArmorFromSC();
+    state.msgHolder += `You equip your ${existing.title}.\n`;
+    return text;
+  }
+
+  // Build display title:
+  // Title case words
+  function titleCase(s){
+    return s.split(/\s+/).filter(Boolean)
+      .map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase())
+      .join(" ");
+  }
+  let displayTitle = titleCase(fullPhrase);
+
+  // If user phrase lacked any generic term, append "Armor" for clarity
+  if (!/\b(armor|armour|suit|set)\b/i.test(displayTitle) && displayTitle.toLowerCase() !== "unarmoured") {
+    displayTitle += " Armor";
+  }
+
+  // Create new card with full descriptive title
+  getOrCreateArmorCard(displayTitle);
+  storeEquippedArmorName(displayTitle);
+  retrieveArmorFromSC();
+  state.msgHolder += `You equip your ${displayTitle}.\n`;
+  return text;
+}
+
+
+function updateShieldTurn() {
+  const sh = state.armor && state.armor.shield;
+  if (!sh || sh.max <= 0) return;
+
+  // Trigger depletion -> cooldown
+  if (sh.charge <= 0 && !sh.inRegen) {
+    sh.charge = 0;
+    sh.inRegen = true;
+    sh.regenCD = sh.regenDelay;
+    state.msgHolder += "Your shield is depleted and begins its cooldown.\n";
+  }
+
+  if (sh.inRegen) {
+    if (sh.regenCD > 0) {
+      sh.regenCD--;
+      if (sh.regenCD === 0) {
+        state.msgHolder += "Shield recharge begins.\n";
+      }
+    } else {
+      sh.charge += sh.regenRate;
+      if (sh.charge >= sh.max) {
+        sh.charge = sh.max;
+        sh.inRegen = false;
+        sh.regenCD = 0;
+        state.msgHolder += "Shield fully recharged.\n";
+      } else {
+        state.msgHolder += `Shield recharging (${Math.round(sh.charge)}/${sh.max}).\n`;
+      }
+    }
+  }
+}
+
+// ===== END MULTI-SUIT ARMOR SYSTEM =====
+
+
 //////////////////////////////////////////WEAPONS///////////////////////////////////////////
 
-weaponmodKeys = ["ammoMod", "condMod"];
-weaponStatKeysForMod = ["ammo", "cond"];
+const weaponmodKeys = ["ammoMod", "condMod"];
+const weaponStatKeysForMod = ["ammo", "cond"];
 
 // CREATE new sc with Weapon Modifiers if sc doesn't exist
 function createIfNoWeaponmodSC() {
@@ -2128,6 +2218,150 @@ function retrieveWeaponStatsFromEntry(entry) {
   return stats;
 }
 
+function parseWeaponDamageString(raw){
+  if(!raw||typeof raw!=="string") return {raw:raw||"",components:[]};
+  const cleaned = raw.replace(/DMG TYPE:\s*/i,'').trim();
+  if(!cleaned) return {raw,components:[]};
+  const groups = cleaned.split(/[\+,&]+/).map(g=>g.trim()).filter(Boolean);
+  const comps=[];
+  groups.forEach(g=>{
+    let classNums=[];
+    const cm=g.match(/Class\s+([0-9\/\s]+)/i);
+    if(cm){
+      classNums = cm[1].trim().split(/\s*\/\s*/).map(n=>parseInt(n,10)||1);
+      g = g.replace(/Class\s+[0-9\/\s]+/i,'').trim();
+    }
+    const toks = g.split(/\/+/).map(t=>t.trim()).filter(Boolean);
+    toks.forEach((tok,i)=>{
+      const base=tok.toLowerCase();
+      const key = DAMAGE_TYPE_ALIASES[base] || DAMAGE_TYPE_ALIASES[base.replace(/s$/,'')] || "other";
+      const cls = classNums[i]!=null ? classNums[i] : (classNums.length===1?classNums[0]:1);
+      comps.push({source:tok,type:key,class:cls});
+    });
+  });
+  const merged={};
+  comps.forEach(c=>{
+    if(!merged[c.type] || c.class>merged[c.type].class) merged[c.type]=c;
+  });
+  return {raw,components:Object.values(merged)};
+}
+
+function getWeaponDamagePacket(weaponName){
+  weaponName = weaponName || getCurrentWeaponName();
+  if(!weaponName) return {raw:"",components:[]};
+  const sc = storyCards.find(s=>s.title.toLowerCase()===weaponName.toLowerCase());
+  if(!sc||!sc.entry) return {raw:"",components:[]};
+  const dmgLine = sc.entry.split(/\n/).find(l=>/^DMG TYPE:/i.test(l)) || "";
+  const parsed = parseWeaponDamageString(dmgLine.replace(/^DMG TYPE:\s*/i,''));
+  parsed.timestamp=Date.now();
+  state.lastDamagePacket = parsed;
+  return parsed;
+}
+
+function evaluateDamageAgainstArmor(dmgPacket, armorObj){
+  const resist = (armorObj && armorObj.resist) ? armorObj.resist : {directed:0,thermal:0,kinetic:0,psychic:0,sonic:0,other:0};
+  const results = [];
+  if(!dmgPacket || !Array.isArray(dmgPacket.components)) return { components: results };
+  dmgPacket.components.forEach(c=>{
+    const r = Number(resist[c.type]) || 0;
+    const diff = r - c.class;
+    let tier;
+    if (diff > 4) tier = "none";
+    else if (diff > 0) tier = "moderate";
+    else if (diff === 0) tier = "exact";
+    else tier = "defeated";
+    results.push({ type:c.type, weaponClass:c.class, resist:r, diff, tier });
+  });
+  const orderRank = { defeated:0, exact:1, moderate:2, none:3 };
+  results.sort((a,b)=> orderRank[a.tier]-orderRank[b.tier] || (b.weaponClass - a.weaponClass));
+  return { components: results };
+}
+
+// --- Armor Damage Tag Regex + Parser ---
+const ARMOR_DMG_FLAG_REGEX = /<!armorDmg>([\s\S]*?)<\/armorDmg>/gi;
+
+/**
+ * Parse semicolon or comma separated key=value pairs inside <!armorDmg>...</armorDmg>
+ * Example payload: type=directed;tier=defeated;damageClass=3;resistClass=1;shieldBefore=25;shieldAfter=0;notes=shield collapse
+ */
+
+function consumeArmorDamageFlags(text){
+  // Parse all <!armorDmg>...</armorDmg> blocks (even if model misbehaves and emits several)
+  ARMOR_DMG_FLAG_REGEX.lastIndex = 0;
+  let m;
+  const rawEntries = [];
+  while((m = ARMOR_DMG_FLAG_REGEX.exec(text)) !== null){
+    const inner = (m[1]||"").trim();
+    if(!inner) continue;
+    const obj = {};
+    inner.split(/[;,]\s*/).forEach(pair=>{
+      const kv = pair.split("=");
+      if(kv.length>=2){
+        const k = kv[0].trim().toLowerCase();
+        const v = kv.slice(1).join("=").trim();
+        obj[k] = v;
+      }
+    });
+    rawEntries.push(obj);
+  }
+  if(!rawEntries.length){
+    return { hadFlags:false, entries:[], cleanedText:text };
+  }
+
+  // Pick strongest by tier precedence then highest weaponClass
+  const tierRank = { defeated:3, exact:2, moderate:1, none:0 };
+  rawEntries.forEach(o=>{
+    o.tier = (o.tier||"").toLowerCase();
+    if(!tierRank.hasOwnProperty(o.tier)) o.tier = "moderate"; // fallback
+    o.weaponClass = parseInt(o.weaponClass||o.damageclass||"0",10)||0;
+    o.resist = parseInt(o.resist||"0",10)||0;
+    if(o.shieldbefore!=null) o.shieldBefore = parseInt(o.shieldbefore,10)||0;
+    if(o.shieldafter!=null)  o.shieldAfter  = parseInt(o.shieldafter,10)||0;
+  });
+
+  rawEntries.sort((a,b)=>{
+    const tdiff = (tierRank[b.tier]-tierRank[a.tier]);
+    if (tdiff) return tdiff;
+    return b.weaponClass - a.weaponClass;
+  });
+
+  const chosen = rawEntries[0];
+
+  // Helper to format summary
+  function formatArmorDamageSummary(obj){
+    const turn = state.turnCount || 0;
+    const type = (obj.type||"?").toLowerCase();
+    const tier = obj.tier;
+    const wc = obj.weaponClass;
+    const rs = obj.resist;
+    let parts = [`T${turn}`, type, tier, `WC:${wc}/R:${rs}`];
+    if(obj.shieldBefore!=null && obj.shieldAfter!=null){
+      parts.push(`S:${obj.shieldBefore}→${obj.shieldAfter}`);
+    }
+    if(obj.notes){
+      // keep short
+      parts.push(obj.notes.replace(/\s+/g," ").slice(0,28));
+    }
+    return parts.join(" ");
+  }
+
+  const summaryLine = formatArmorDamageSummary(chosen);
+
+  // Ensure armor state structure
+  state.armor = state.armor || { damageLog:[], resist:{}, shield:{} };
+  state.armor.damageLog = state.armor.damageLog || [];
+
+  // Prepend the summary (one line per turn max)
+  state.armor.damageLog.unshift(summaryLine);
+  if (state.armor.damageLog.length > 50) state.armor.damageLog.length = 50;
+
+  // Strip ALL armorDmg tag wrappers from visible output (keep inner text narrative if any)
+  const cleanedText = text.replace(ARMOR_DMG_FLAG_REGEX, (_full, inner)=>(inner||"").trim());
+
+  return { hadFlags:true, entries:[summaryLine], cleanedText };
+}
+
+
 // RETRIEVE data from sc and store to weapon
 function retrieveWeaponFromSC(weaponName) {
   weaponName = weaponName || getCurrentWeaponName();
@@ -2245,239 +2479,325 @@ function statUpWeapon(statName, incAmt, weaponName) {
 }
 
 ////////////////////////////////Inventory Management/////////////////////////////////////////////////////
+// === Unified Inventory System (Nova Refactor 2025-08-15) ===
+// Goals:
+//  - Single canonical representation: state.playerInv.item[] (display singular) + amt[]
+//  - Root-based matching (normalizeItemRoot) for merging variants
+//  - Heuristic + adjudicated pickup (detectHybridPickup + <!pickup> flags)
+//  - Simple natural drop parsing (detectRemoveFromInv)
+//  - Auto consolidation every store / retrieval
+//  - Re-added createIfNoInvSC (was removed in prior patch) so onInput/onOutput still safe.
 
-
-console.log("Player Inventory: " + state.playerInv.item + "\n" + state.playerInv.amt);
-
-// CREATE new sc with player inv if sc doesnt exist
+// (1) Create Player Inventory Story Card if missing
 function createIfNoInvSC(){
   if (!storyCards.find(sc => sc.title === "Player Inventory")) {
-    // If "Player Inventory" card doesn't exist, create it
     addStoryCard("Player Inventory", "Blank", "Player Stats");
-
-    // Fetch the "Player Inventory" card
     const invSC = storyCards.find(sc => sc.title === "Player Inventory");
-    invSC.description = "Format for Modifying: ItemName (amt: X)";
-
+    invSC.description = "Format: Item Name (Amt: X)";
+    invSC.entry = "";
   }
 }
 
-// STORE inv to sc
+// (2) Normalization → canonical root
+function normalizeItemRoot(name){
+  if(!name) return "";
+  return name
+    .toLowerCase()
+    .replace(/['’]s\b/g,"")  // strip possessive
+    .replace(/\b(my|the|a|an|your|this|that|these|those|some|one|two|three|four|five|six|seven|eight|nine|ten|of|its|his|her|their|our)\b/g,"")
+    .replace(/\b(broken|damaged|old|rusty)\b/g,"") // remove non-essential condition words (treat variants as same stack)
+    .replace(/\s+/g," ")
+    .trim()
+    .replace(/s\b/,""); // crude singular
+}
+
+// (3) Display form (title case, drop leading qty/articles)
+function deriveDisplayName(original){
+  if(!original) return "";
+  let cleaned = original
+    .trim()
+    .replace(/^\d+\s+(?:of\s+)?(?:the\s+)?/i,"")
+    .replace(/^(my|the|a|an|your|this|that|these|those|some)\s+/i,"")
+    .trim();
+  cleaned = cleaned.split(/\s+/).map(w=>{
+    if(/^[A-Z0-9\-]+$/.test(w)) return w; // keep ALLCAPS tokens like RS-43
+    return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();
+  }).join(" ");
+  return cleaned;
+}
+
+// (4) Find inventory index by root
+function invFindIndexByRoot(root){
+  if(!root) return -1;
+  const key = normalizeItemRoot(root);
+  for(let i=0;i<state.playerInv.item.length;i++){
+    if(normalizeItemRoot(state.playerInv.item[i]) === key) return i;
+  }
+  return -1;
+}
+
+// (5) Merge duplicate roots
+function consolidateInventoryByRoot(){
+  if(!state.playerInv || !Array.isArray(state.playerInv.item)) return;
+  const map = Object.create(null);
+  state.playerInv.item.forEach((disp,i)=>{
+    const qty = Number(state.playerInv.amt[i])||0;
+    if(qty <= 0) return;
+    const root = normalizeItemRoot(disp);
+    if(!root) return;
+    if(!map[root]){
+      let canonical = deriveDisplayName(disp).replace(/s\b/i,''); // enforce singular
+      map[root] = { display: canonical, qty: 0 };
+    }
+    map[root].qty += qty;
+  });
+  state.playerInv.item = Object.values(map).map(o=>o.display);
+  state.playerInv.amt  = Object.values(map).map(o=>o.qty);
+}
+
+// (6) Store inventory to Story Card (always consolidate first)
 function storeInvToSC(){
-  // Fetch the "Player Inventory" card
+  createIfNoInvSC();
   const invSC = storyCards.find(sc => sc.title === "Player Inventory");
-  if (!invSC) {
-    log('Player Inventory story card not found!');
-    return;
-  }
-  // Format and display to sc
-  invSC.entry = state.playerInv.item.map((item, index) => `${item} (Amt: ${state.playerInv.amt[index]})`).join("\n");
+  if(!invSC) return;
 
-  // Trim notes on char limit to prevent memory overfill
-  if (invSC.description.length > 3000) {
-    halfIndex = Math.floor(invSC.description.length / 2);
-    invSC.description = invSC.description.slice(0, halfIndex);
-
-    console.log("Trimming invSC description to prevent memory overload.");
-  }
-}
-
-// RETRIEVE inv data from sc
-function retrieveInvFromSC(){
-  // Fetch the "Player Inventory" card
-  const invSC = storyCards.find(sc => sc.title === "Player Inventory");
-  if (!invSC) {
-    log('Player Inventory story card not found!');
-    return;
-  }
-  // Get inv sc entry
-  fromInvSC = invSC.entry;
-  log("fromInvSC: " + fromInvSC);
-
-  // Use regex to extract item names and amounts (Ex: Ball (Amt: 2), etc. )
-  matches = fromInvSC.matchAll(/(.+?)\s*\(Amt:\s*(\d+(?:\.\d+)?)\)/gi);
-
-  itemHold = [];
-  amtHold = [];
-  for (const match of matches) {
-    itemHold.push(match[1].trim()); // Extract item name to holder
-    amtHold.push(Number(match[2])); // Extract amount as integer to holder2
-  }
-
-  // Store retrieved data to codebase 
-  state.playerInv.item = itemHold;
-  state.playerInv.amt = amtHold;
-  //console.log("Items:", state.playerInv.item);
-  //console.log("Amounts:", state.playerInv.amt);
-}
-
-
-function detectStoreInv(text) {
-
-  // Prevent inventory actions during dialogue
- if (isPlayerDialoguing(text)) return text; // Skip inventory logic if dialoguing
-
- // First, check if this is actually a combat action
-  if (/take\s+aim|aim\s+at|and\s+fire|you\s+fire|fire\s+at/i.test(text.toLowerCase())) {
-    return text; // This is likely a combat action, not inventory management
-  }
-
-    // Remove punctuation except hyphens, split into words
-    let wordsArr = text.replace(/[.,!?]/g, '').replace(/\s+/g, ' ').trim().split(' ');
-
-    // Find the index of the first equip/store verb
-    let equipIndex = wordsArr.findIndex(w => equipWords.some(eq => w.toLowerCase() === eq.toLowerCase()));
-    if (equipIndex === -1) return text;
-
-    // Find the index of the first inventory word (optional)
-    let invIndex = wordsArr.findIndex(w => invWords.some(inv => w.toLowerCase() === inv.toLowerCase()));
-
-    // Extract everything after the equip verb up to the inventory word (or end)
-    let afterEquip = wordsArr.slice(equipIndex + 1, invIndex !== -1 ? invIndex : undefined).join(' ');
-
-    // Split on " and " to get possible item phrases
-    let itemPhrases = afterEquip.split(/\s+and\s+/i).map(s => s.trim()).filter(Boolean);
-
-    // Regex to remove trailing location phrases (expand as needed)
-    const trailingLocationRegex = /\s*(from|off|on|in|out of|near|by|at|into|onto|upon|beside|under|over|behind|before|after)\s+(the\s+)?[\w\s\-']+$/i;
-
-    let addedAny = false;
-    for (let phrase of itemPhrases) {
-        // Remove trailing location/prepositional phrase using regex
-        let cleanPhrase = phrase.replace(trailingLocationRegex, '').trim();
-
-        // Remove stopwords, equip/inventory words, and trailing verbs/prepositions
-        let itemWords = cleanPhrase.split(' ').filter(w =>
-            !equipWords.includes(w.toLowerCase()) &&
-            !invWords.includes(w.toLowerCase()) &&
-            !stopWords.includes(w.toLowerCase())
-        );
-        while (itemWords.length > 1 && /(placing|putting|adding|storing|taking|grabbing|equipping|looting|snatching|it|them|this|that)/i.test(itemWords[itemWords.length - 1])) {
-            itemWords.pop();
-        }
-
-        // Now check if the first word is a number or number word
-        let itemAmt = 1;
-        const numberWordsRegex = /^(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)$/i;
-        if (itemWords.length > 1 && numberWordsRegex.test(itemWords[0])) {
-            itemAmt = parseInt(wordsToNumber(itemWords[0]).trim());
-            itemWords = itemWords.slice(1);
-        } else if (itemWords.length > 1 && /^\d+$/.test(itemWords[0])) {
-            itemAmt = parseInt(itemWords[0]);
-            itemWords = itemWords.slice(1);
-        }
-
-        // Singularize last word if it's a simple plural (e.g., "cells" -> "cell"), but keep hyphens
-        if (
-            itemWords.length > 0 &&
-            /s$/.test(itemWords[itemWords.length - 1]) &&
-            !/ss$/.test(itemWords[itemWords.length - 1])
-        ) {
-            itemWords[itemWords.length - 1] = itemWords[itemWords.length - 1].replace(/s$/, '');
-        }
-
-        // Join remaining words as item name (hyphens are preserved)
-        let itemName = itemWords.join(' ').trim();
-
-        // Final sanity checks
-        if (!itemName || itemName.length < 2) continue;
-
-        // --- Regex: Ignore environmental/non-item phrases ---
-        if (debugNonItemMatch(itemName)) {
-            state.msgHolder += `Ignored non-item phrase: "${itemName}"\n`;
-            continue;
-        }
-
-        // Add to inventory (merge with existing if present)
-        let alreadyIndex = state.playerInv.item.findIndex(i => i.toLowerCase() === itemName.toLowerCase());
-        if (alreadyIndex !== -1 && state.playerInv.amt[alreadyIndex] !== undefined) {
-           state.playerInv.amt[alreadyIndex] += itemAmt;
-        } else {
-        state.playerInv.item.push(itemName);
-        state.playerInv.amt.push(itemAmt);
-        } 
-        state.msgHolder += `🎒 +${itemAmt} ${itemName}\n`;
-        addedAny = true;
-
-        // --- Auto-equip weapon if none equipped ---
-        let weaponNames = getWeaponNamesFromStoryCards();
-        let equippedWeapon = state.equippedWeapon || retrieveEquippedWeaponFromSC();
-        if (
-            weaponNames.some(w => itemName.toLowerCase().includes(w) || w.includes(itemName.toLowerCase())) &&
-            !equippedWeapon
-        ) {
-            storeEquippedWeaponToSC(itemName);
-            state.equippedWeapon = itemName;
-            state.msgHolder += `You equip the ${itemName}.\n`;
-        }
+  //  Collapse ONLY exact duplicates (case-insensitive), do NOT root-normalize
+  const tally = [];
+  const indexMap = Object.create(null); // lowerName -> index in tally
+  for (let i=0;i<state.playerInv.item.length;i++){
+    const rawName = state.playerInv.item[i];
+    const amt = Number(state.playerInv.amt[i]) || 0;
+    if (!rawName || amt <= 0) continue;
+    const key = rawName.toLowerCase();
+    if (indexMap[key] == null){
+      indexMap[key] = tally.length;
+      tally.push({ name: rawName, amt });
+    } else {
+      tally[indexMap[key]].amt += amt;
     }
+  }
 
-    if (addedAny) storeInvToSC();
+  //  Optional alphabetical sort if player sets a flag
+  if (state.invSortAlpha){
+    tally.sort((a,b)=> a.name.localeCompare(b.name));
+  }
 
-    return addedAny ? text + "🎒" : text;
+  //  Rebuild state arrays (preserve singular/plural as originally stored)
+  state.playerInv.item = tally.map(t=>t.name);
+  state.playerInv.amt  = tally.map(t=>t.amt);
+
+  //  Compose entry
+  const newEntry = state.playerInv.item
+    .map((item,i)=> `${item} (Amt: ${state.playerInv.amt[i]})`)
+    .join("\n");
+
+  //  Lightweight hash to skip unchanged writes
+  const hash = newEntry.length + '|' + state.playerInv.item.length;
+  if (state._invLastHash === hash){
+    return; // no change => skip SC write for token hygiene
+  }
+  state._invLastHash = hash;
+  invSC.entry = newEntry;
+
+  //  Trim description if oversized
+  if (invSC.description.length > 3000){
+    invSC.description = invSC.description.slice(0,1500);
+  }
 }
 
-// Detects when items are removed, dropped, thrown, or taken from the player inventory
-function detectRemoveFromInv(text) {
-  // Define verbs that indicate removal
-  const removeWords = [
-    "drop", "discard", "throw", "toss", "lose", "remove", "give", "hand", "donate", "leave", "abandon", "release", "shed", "let go", "throw away", "throw out", "get rid of", "pass", "offer", "surrender", "yield", "forfeit", "deliver", "send", "transfer", "take away", "taken", "stolen", "robbed"
-  ];
+/// Whitelist init (trusted roots skip adjudication)
+function initItemWhitelist(){
+  state.itemWhitelist = state.itemWhitelist || { trusted:{}, pending:{} };
+  if(!state.itemWhitelist._seeded){
+    ["power cell","micro cell","cell","laspistol","lasrifle","longstrike","vibro blade","grenade","ration","medkit"]
+      .forEach(s=> state.itemWhitelist.trusted[s]=1);
+    state.itemWhitelist._seeded = true;
+  }
+}
 
-  // Normalize input
-  let t = text.toLowerCase();
+// (8) Heuristic pickup scanner (lightweight)
+function pickupHeuristicScan(text){
+  const lower = text.toLowerCase();
+  if(!PICKUP_VERBS.some(v=> new RegExp(`\\b${v}\\b`).test(lower))) return { immediate:[], adjudicate:[] };
 
-  // Check if any remove word is present
-  let found = removeWords.some(word => t.includes(word));
-  if (!found) return text;
+  const neg = PICKUP_NEGATIVE.some(n => lower.includes(n));
+  const contested = PICKUP_CONTESTED.some(c => lower.includes(c));
+  const future = PICKUP_FUTURE_OR_CONDITIONAL.some(f=> new RegExp(`\\b${f}\\b`).test(lower));
 
-  // Try to find which item is being removed
-  let itemRemoved = null;
-  let amtRemoved = 1;
-  
-  // Get currently equipped weapon for comparison
-  let equippedWeapon = state.equippedWeapon || retrieveEquippedWeaponFromSC();
-
-  // Try to match an item from inventory
-  for (let i = 0; i < state.playerInv.item.length; i++) {
-    let itemName = state.playerInv.item[i].toLowerCase();
-    if (t.includes(itemName)) {
-        if (i < state.playerInv.amt.length && state.playerInv.amt[i] !== undefined) {
-            itemRemoved = state.playerInv.item[i];
-            
-            // Try to detect amount (e.g., "drop 2 apples")
-            let regex = new RegExp(`(?:drop|discard|throw|toss|remove|give|hand|leave|abandon|release|shed|let go|throw away|throw out|get rid of|pass|offer|surrender|yield|forfeit|deliver|send|transfer|take away|taken|stolen|robbed)\\s+(\\d+)\\s+${itemName}`, "i");
-            let match = text.match(regex);
-            if (match && match[1]) {
-                amtRemoved = parseInt(match[1]);
-            }
-            
-            // --- Bounds check: never remove more than you have ---
-            amtRemoved = Math.max(1, Math.min(amtRemoved, state.playerInv.amt[i]));
-            state.playerInv.amt[i] -= amtRemoved;
-            
-            // Check if this is the equipped weapon and we're removing all of it
-            if (equippedWeapon && equippedWeapon.toLowerCase() === itemName && 
-                (state.playerInv.amt[i] <= 0 || amtRemoved === state.playerInv.amt[i])) {
-                storeEquippedWeaponToSC(""); // Clear the equipped weapon
-                state.equippedWeapon = null; // Also clear the state variable
-                state.msgHolder += `You no longer have ${itemRemoved} equipped.\n`;
-            }
-            
-            // Remove item completely if amount is 0
-            if (state.playerInv.amt[i] <= 0) {
-                state.playerInv.item.splice(i, 1);
-                state.playerInv.amt.splice(i, 1);
-            }
-            
-            storeInvToSC();
-            state.msgHolder += `🗑️ -${amtRemoved} ${itemRemoved}\n`;
-            break;
-        }
+  const candidates = [];
+  PICKUP_VERBS.forEach(v=>{
+    const re = new RegExp(`\\b${v}\\b([^\\.\\n;]{0,80})`,"gi");
+    let m;
+    while((m=re.exec(text))!==null){
+      m[1].split(/(?:,| and )/i).forEach(piece=>{
+        let p = piece.trim()
+          .replace(/^(up|the|a|an|your|my|some|that|this|his|her|their|its)\s+/i,"")
+          .replace(/\b(from|off|out|into|in|as|while)\b.*$/i,"")
+          .trim();
+        if(p && /\w/.test(p)) candidates.push(p);
+      });
     }
+  });
+
+  const out = { immediate:[], adjudicate:[] };
+  if (neg) return out;
+
+  candidates.forEach(orig=>{
+    let working = wordsToNumber(orig);
+    let qty = 1;
+    const qm = working.match(/^\s*(\d+)\b/);
+    if(qm){
+      qty = Math.max(1, parseInt(qm[1],10));
+      working = working.replace(/^\s*\d+\s+(?:of\s+)?/i,'').trim();
+    }
+    const root = normalizeItemRoot(working);
+    if(!root || /(ground|floor|wall|room|door|air|blood|corpse)$/i.test(root)) return;
+    const isTrusted = !!state.itemWhitelist?.trusted?.[root];
+    const forceAdj = contested || future;
+    const display = deriveDisplayName(working);
+    const rec = { root, qty, raw: orig, display };
+    if(!forceAdj && isTrusted) out.immediate.push(rec);
+    else out.adjudicate.push(rec);
+  });
+  return out;
+}
+
+// (9) <!pickup> tag consumer – adjudicated adds
+const PICKUP_FLAG_REGEX = /<!pickup>([\s\S]*?)<\/pickup>/gi;
+function consumePickupFlags(text){
+  let m, had=false;
+  const adds=[];
+  PICKUP_FLAG_REGEX.lastIndex=0;
+  while((m=PICKUP_FLAG_REGEX.exec(text))!==null){
+    had=true;
+    const payload = (m[1]||"").trim();
+    if(!payload) continue;
+    const obj={};
+    payload.split(/[;,\n]\s*/).forEach(pair=>{
+      const kv = pair.split("=");
+      if(kv.length>=2){
+        obj[kv[0].trim().toLowerCase()] = kv.slice(1).join("=").trim();
+      }
+    });
+    const rawItem = obj.item||"";
+    const root = normalizeItemRoot(rawItem);
+    const qty = Math.max(1, parseInt(obj.qty||"1",10) || 1);
+    const secured = /^(yes|true|secured|success)$/i.test(obj.secured||"");
+    if(root && secured){
+      adds.push({root, qty});
+    }
+  }
+  if(had){
+    text = text.replace(PICKUP_FLAG_REGEX, (_f, inner)=>(inner||"").trim());
+  }
+
+  if(adds.length){
+    adds.forEach(({root,qty})=>{
+      const display = (state._pendingPickupDisplayMap && state._pendingPickupDisplayMap[root]) 
+        ? deriveDisplayName(state._pendingPickupDisplayMap[root])
+        : deriveDisplayName(root);
+
+      initItemWhitelist();
+      state.itemWhitelist.trusted[root] = (state.itemWhitelist.trusted[root]||0)+1;
+
+      const idx = invFindIndexByRoot(root);
+      if(idx>-1){
+        state.playerInv.amt[idx]+=qty;
+      } else {
+        state.playerInv.item.push(display.replace(/s\b/i,'')); // singular
+        state.playerInv.amt.push(qty);
+      }
+      state.msgHolder += `🎒 +${qty} ${display}\n`;
+    });
+    state._pendingPickupDisplayMap = {};
+    storeInvToSC();
+  }
+  return { text, added: adds };
+}
+
+// (10) Unified pickup (heuristic immediate + prepare adjudication)
+function detectHybridPickup(text){
+  initItemWhitelist();
+  const res = pickupHeuristicScan(text);
+  const seen = new Set();
+
+  if(res.immediate.length){
+    res.immediate.forEach(({root,qty,display})=>{
+      if(seen.has(root)) return;
+      seen.add(root);
+      const idx = invFindIndexByRoot(root);
+      if(idx>-1){
+        state.playerInv.amt[idx]+=qty;
+      } else {
+        state.playerInv.item.push(display.replace(/s\b/i,'')); 
+        state.playerInv.amt.push(qty);
+      }
+      state.itemWhitelist.trusted[root] = (state.itemWhitelist.trusted[root]||0)+1;
+      state.msgHolder += `🎒 +${qty} ${display}\n`;
+    });
+    storeInvToSC();
+  }
+
+  if(res.adjudicate.length){
+    state.pendingPickupList = (state.pendingPickupList||[]).concat(res.adjudicate);
+    state._pendingPickupDisplayMap = state._pendingPickupDisplayMap || {};
+    res.adjudicate.forEach(r=>{
+      if(!state._pendingPickupDisplayMap[r.root]){
+        state._pendingPickupDisplayMap[r.root] = r.display;
+      }
+    });
   }
   return text;
 }
+
+// (11) Natural language item removal
+function detectRemoveFromInv(text){
+  const lower = text.toLowerCase();
+  if(!/\b(drop|discard|toss|remove|shed|dump|give)\b/.test(lower)) return text;
+
+  const segments = lower.split(/\band\b|,/i).map(s=>s.trim());
+  let changed = false;
+
+  segments.forEach(seg=>{
+    if(!/\b(drop|discard|toss|remove|shed|dump|give)\b/.test(seg)) return;
+
+    let cleaned = wordsToNumber(seg);
+    let m = cleaned.match(/\b(drop|discard|toss|remove|shed|dump|give)\b\s*(\d+)?\s*(.+)$/i);
+    if(!m) return;
+    let qty = m[2] ? parseInt(m[2],10) : 1;
+    let name = m[3].replace(/\b(from|out of|into|in)\b.*$/,'').trim();
+    if(!name) return;
+
+    const root = normalizeItemRoot(name);
+    if(!root) return;
+    const idx = invFindIndexByRoot(root);
+    if(idx===-1) return;
+
+    qty = Math.max(1, qty);
+    if(state.playerInv.amt[idx] <= qty){
+      const removedName = state.playerInv.item[idx];
+      state.playerInv.item.splice(idx,1);
+      state.playerInv.amt.splice(idx,1);
+      state.msgHolder += `🗑️ Removed ${removedName}\n`;
+    } else {
+      state.playerInv.amt[idx] -= qty;
+      state.msgHolder += `🗑️ -${qty} ${state.playerInv.item[idx]}\n`;
+    }
+    changed = true;
+  });
+
+  if(changed){
+    storeInvToSC();
+    return text + " 🗑️";
+  }
+  return text;
+}
+
+// (12) Debug log (optional)
+console.log("Player Inventory (Unified): " + state.playerInv.item + "\n" + state.playerInv.amt);
+
+// === End Unified Inventory System ===
+////////////////////////////////End Inventory Management/////////////////////////////////////////////////////
 
 ///////Reload Weapon function
 
@@ -2605,44 +2925,37 @@ function createIfNoSkillSC() {
 }
 //To STORE skill to sc
 function storeSkillsToSC(){
-  //Fetch skill sc
   const skillSC = storyCards.find(sc => sc.title === "Player Skills");
-
-  //Format and display to sc Ex: Fireball 
-  skillSC.entry = state.playerSkills.name.map((skill, index) => `${skill} (Lvl ${state.playerSkills.lvl[index]})`).join("\n");
-
-  // Trim notes on char limit to prevent memory overfill
-  if (skillSC.description.length > 3000) {
-    halfIndex = Math.floor(skillSC.description.length / 2);
+  if (!skillSC) return;
+  skillSC.entry = state.playerSkills.name
+    .map((skill,i)=>`${skill} (Lvl ${state.playerSkills.lvl[i]})`)
+    .join("\n");
+  if (skillSC.description.length > 3000){
+    const halfIndex = Math.floor(skillSC.description.length/2);
     skillSC.description = skillSC.description.slice(0, halfIndex);
-
-    console.log("Trimming skillSC description to prevent memory overload.");
   }
 }
 
 //To RETRIEVE skills from SC.
 //Put in output script so retreiving is not limited to on input.
-function retrieveSkillsFromSC(){ 
+function retrieveSkillsFromSC(){
   const skillSC = storyCards.find(sc => sc.title === "Player Skills");
-  let temp = skillSC.entry;
-
-  let skillHolder = [];
-  let lvlHolder = [];
-  let costHolder = [];
-  // Match: SkillName (Lvl X)
-  let matches = temp.matchAll(/(.+?)\s*\(Lvl\s*(\d+(?:\.\d+)?)\)/gi);
-
-  for(const match of matches){
-    skillHolder.push(match[1].trim());
-    lvlHolder.push(Number(match[2]));
-    costHolder.push(0); // No CP/MP cost for non-psyker skills
+  if (!skillSC) return;
+  const text = skillSC.entry || "";
+  const matches = text.matchAll(/(.+?)\s*\(Lvl\s*(\d+(?:\.\d+)?)\)/gi);
+  const names = [];
+  const lvls  = [];
+  const costs = [];
+  for (const m of matches){
+    names.push(m[1].trim());
+    lvls.push(Number(m[2]));
+    costs.push(0);
   }
-
-  state.playerSkills.name = skillHolder;
-  state.playerSkills.lvl = lvlHolder;
-  state.playerSkills.cost = costHolder;
+  state.playerSkills.name = names;
+  state.playerSkills.lvl  = lvls;
+  state.playerSkills.cost = costs;
+  ensureLevelUpsSync(state.playerSkills);
 }
-
 
 // Always create initial Psyker Spells SC if none exists
 function createIfNoPsykerSpellSC() {
@@ -2650,13 +2963,14 @@ function createIfNoPsykerSpellSC() {
     addStoryCard("Psyker Spells", "Blank", "Player Stats");
     const spellSC = storyCards.find(sc => sc.title === "Psyker Spells");
     spellSC.description = "Format: SpellName (Lvl X) (CP)";
-    // Initialize with starter psyker spells
     state.psykerSpells = {
       name: [...PsykerSpells],
       lvl: PsykerSpells.map(() => 1),
       cost: PsykerSpells.map(() => 10),
-      levelUps: PsykerSpells.map(() => 0) 
+      levelUps: PsykerSpells.map(() => 0),
+      milestoneApplied: {}              // NEW
     };
+    state.psykerSpells.name.forEach(s=> state.psykerSpells.milestoneApplied[s]=[]);
     storePsykerSpellsToSC();
   }
 }
@@ -2671,46 +2985,110 @@ function storePsykerSpellsToSC() {
 }
 
 // RETRIEVE psyker spells from the story card
-function retrievePsykerSpellsFromSC() {
+function retrievePsykerSpellsFromSC(){
   const spellSC = storyCards.find(sc => sc.title === "Psyker Spells");
-  let temp = spellSC.entry;
-  let name = [], lvl = [], cost = [];
-  let matches = temp.matchAll(/(.+?)\s*\(.*?(\d+(?:\.\d+)?).*?\)\s*\(.*?(\d+(?:\.\d+)?).*?\)/g);
-  for (const match of matches) {
-    name.push(match[1]);
-    lvl.push(Number(match[2]));
-    cost.push(Number(match[3]));
+  if (!spellSC) return;
+
+  // 1. Capture previous milestone + base cost state (if any)
+  const prev = state.psykerSpells || {};
+  const prevMilestones = (prev.milestoneApplied && typeof prev.milestoneApplied === "object") ? prev.milestoneApplied : {};
+  const prevBaseCosts = state._psykerBaseCosts || {};
+
+  const text = spellSC.entry || "";
+  const matches = text.matchAll(/(.+?)\s*\(Lvl\s*(\d+(?:\.\d+)?)\)\s*\((\d+(?:\.\d+)?)\s*CP\)/gi);
+  const name = [], lvl = [], cost = [];
+  for (const m of matches){
+    name.push(m[1].trim());
+    lvl.push(Number(m[2]));
+    cost.push(Number(m[3]));
   }
-  //Always restores levelUps, or initialize if missing
-  let levelUps = state.psykerSpells.levelUps;
-  if (!Array.isArray(levelUps) || levelUps.length !== name.length) {
-    levelUps = name.map(() => 0);
+
+  // LevelUps sync
+  let levelUps = prev.levelUps;
+  if (!Array.isArray(levelUps) || levelUps.length !== name.length){
+    levelUps = name.map(()=>0);
   }
-  state.psykerSpells = { name, lvl, cost, levelUps };
+
+  // 2. Rebuild object WITHOUT losing milestone history
+  state.psykerSpells = {
+    name,
+    lvl,
+    cost,
+    levelUps,
+    milestoneApplied: {}
+  };
+
+  // 3. Restore milestone arrays per spell (or start empty if new spell)
+  name.forEach(spell => {
+    state.psykerSpells.milestoneApplied[spell] = Array.isArray(prevMilestones[spell])
+      ? [...prevMilestones[spell]]
+      : [];
+  });
+
+  // 4. Initialize (or extend) persistent base cost map for deterministic future recalcs (used by optional Patch 2)
+  state._psykerBaseCosts = prevBaseCosts;
+  name.forEach((spell,i)=>{
+    if (state._psykerBaseCosts[spell] == null) {
+      state._psykerBaseCosts[spell] = cost[i]; // first seen cost becomes baseline
+    }
+  });
 }
 
 
 /////////////////////////////////////////////////////////////////////////////////////
 
 
-// --- Passive Skill Trigger Function ---
-function detectPassiveSkillTrigger(text) {
+// Utility/context functions (e.g., isPlayerContext, indicesOf, etc.)
+
+// --- Environmental Detection Helper ---
+function isEnvironmentalAroundTrigger(text, matchIndex, trigWord, windowChars = 120) {
   const t = (text || "").toLowerCase();
+  const start = Math.max(0, matchIndex - windowChars);
+  const end = Math.min(t.length, matchIndex + trigWord.length + windowChars);
+  const win = t.slice(start, end);
 
-  for (let i = 0; i < state.playerSkills.name.length; i++) {
-    const skill = (state.playerSkills.name[i] || "").toLowerCase();
-    const cost = state.playerSkills.cost[i];
-    if (cost > 0) continue; // Skip Psyker skills
+  // Only block if the trigger is in a pure environmental description (not player action)
+  const envStartPhrases = [
+    "the room contains", "the area contains", "the hallway contains", "the chamber contains",
+    "is equipped with", "is stocked with", "features", "set up for", "for testing", "for training"
+  ];
+  if (envStartPhrases.some(p => win.includes(p))) return true;
 
-    const triggers = skillTriggerMap[skill];
-    if (!triggers) continue;
+  // Otherwise, allow passive skill triggers even near consoles, terminals, etc.
+  return false;
+}
 
-    for (const trig of triggers) {
-      if (t.includes(trig)) {
-        const exp = randomFloat(0.2, 1.0);
+
+
+// --- Passive Skill Trigger Function --- 
+// Detects if a passive skill is triggered within the story
+function detectPassiveSkillTrigger(text) {
+  const src = String(text || "");
+  if (state.contextualActivated) return text; // don't double-award with active use
+
+  const sentences = src.split(/(?<=[.!?\n])\s+/);
+
+  outer:
+  for (const s of sentences) {
+    if (!youWordsRegex.test(s)) continue; // must be player-centric
+    const lower = s.toLowerCase();
+
+    for (let i = 0; i < state.playerSkills.name.length; i++) {
+      if ((state.playerSkills.cost[i] || 0) > 0) continue; // skip Psyker here
+      const skill = String(state.playerSkills.name[i] || "").toLowerCase();
+      const triggers = skillTriggerMap[skill];
+      if (!triggers) continue;
+
+      for (const trig of triggers) {
+        const re = new RegExp(`\\b${trig}(?:ing|ed|s|ers)?\\b`, "i");
+        if (!re.test(lower)) continue;
+
+        const exp = randomFloat(0.01, 0.05);
         state.playerSkills.lvl[i] = Math.round((state.playerSkills.lvl[i] + exp) * 100) / 100;
         storeSkillsToSC();
-        break; // one trigger per skill per call
+        log(`[PassiveSkill] +${exp.toFixed(2)} ${skill} (sentence-level)`);
+        text += " 🧠";
+        break outer; // one passive award per turn
       }
     }
   }
@@ -2718,85 +3096,123 @@ function detectPassiveSkillTrigger(text) {
 }
 
 
+
+///Corruption cost is reduced as skills level up.
 ///Corruption cost is reduced as skills level up.
 function upgradePlayerSkills(text){
-  // Only apply corruption cost reduction at milestones, no name change
-  state.playerSkills.name.forEach((skill,index) => {
-    [5,10,15,20,25].forEach(level => {
-      if(Math.floor(state.playerSkills.lvl[index]) == level){
-        // Level up skill to avoid another upgrade at this level
-        state.playerSkills.lvl[index] = level + 1;
-        // Corruption cost reduction
-        state.playerSkills.cost[index] = Math.round(state.playerSkills.cost[index] * 0.95 * 100) / 100;
-        // Optionally, notify the player
-        text = text + ` Your ${state.playerSkills.name[index]} skill has been upgraded!`;
+  // Milestones at which a one-time corruption (cost) reduction applies
+  const milestones = [5,10,15,20,25];
+
+  // Lazy init milestone tracker (skill name -> applied milestone numbers)
+  if (!state.playerSkills.milestoneApplied) {
+    state.playerSkills.milestoneApplied = {}; // { skillName: [5,10] }
+  }
+
+  state.playerSkills.name.forEach((skill, index) => {
+    const lvl = Math.floor(state.playerSkills.lvl[index] || 0);
+    const appliedArr = state.playerSkills.milestoneApplied[skill] || [];
+
+    milestones.forEach(m => {
+      // Trigger if player reached (or passed) milestone AND not already applied
+      if (lvl >= m && !appliedArr.includes(m)) {
+        // Apply cost reduction (only meaningful if cost > 0)
+        if (typeof state.playerSkills.cost[index] === "number" && state.playerSkills.cost[index] > 0) {
+          state.playerSkills.cost[index] = Math.round(state.playerSkills.cost[index] * 0.95 * 100) / 100;
+        }
+        appliedArr.push(m);
+        text += ` Your ${skill} reached milestone ${m}. Corruption cost reduced.`;
       }
     });
+
+    // Store back updated milestone list for this skill
+    state.playerSkills.milestoneApplied[skill] = appliedArr;
   });
 
   storeSkillsToSC();
   return text;
 }
 
+function upgradePsykerSpells(text){
+  const milestones = [5,10,15,20,25];
+  // Ensure milestone container
+  if (!state.psykerSpells.milestoneApplied ||
+      typeof state.psykerSpells.milestoneApplied !== "object") {
+    state.psykerSpells.milestoneApplied = {};
+  }
+  // Ensure base costs exist (created in retrieval patch)
+  state._psykerBaseCosts = state._psykerBaseCosts || {};
+
+  state.psykerSpells.name.forEach((spell,i)=>{
+    if (!Array.isArray(state.psykerSpells.milestoneApplied[spell])) {
+      state.psykerSpells.milestoneApplied[spell] = [];
+    }
+    const lvl = Math.floor(state.psykerSpells.lvl[i] || 0);
+    const applied = state.psykerSpells.milestoneApplied[spell];
+
+    // Determine which milestones SHOULD be active given current level
+    const shouldHave = milestones.filter(m => lvl >= m);
+
+    // Detect any new milestones not yet recorded (for messaging)
+    const newOnes = shouldHave.filter(m => !applied.includes(m));
+    if (newOnes.length){
+      newOnes.forEach(m=>{
+        text += ` Your ${spell} reached milestone ${m}. Corruption cost reduced.`;
+        applied.push(m);
+      });
+    }
+
+    // Recalculate cost deterministically
+    let base = state._psykerBaseCosts[spell];
+    if (base == null) {
+      // If somehow missing (e.g., legacy), seed it now from current cost
+      base = state.psykerSpells.cost[i];
+      state._psykerBaseCosts[spell] = base;
+    }
+    const effectiveMilestones = applied.length;
+    const recalced = Math.max(1, Math.round(base * Math.pow(0.95, effectiveMilestones) * 100)/100);
+    state.psykerSpells.cost[i] = recalced;
+
+    state.psykerSpells.milestoneApplied[spell] = applied;
+  });
+
+  storePsykerSpellsToSC();
+  return text;
+}
+
 /////////////////////////////////////////////////////////////////////////////////////
 
 //Given an arr of words and an array of player storage (inv, spells, skills), check if anything from storage is mentioned in words arr and returns partialTF,full matchTF,storageindex
-function checkPlayerStorage(text,wordsArr,playerStorage){
-  hasThing = false;
-  hasFullThing = false;
-  finalThingIndex = false;
-  ind = [];
+function checkPlayerStorage(text, wordsArr, playerStorage){
+  let hasThing = false;
+  let hasFullThing = false;
+  let finalThingIndex = null;
+  const ind = [];
+  const textLowerFull = text.toLowerCase();
 
-  //Check if player has anything that PARTIALLY matches the input text
-  //Loop through input words
-  wordsArr.forEach((word, index1) => {
-    //get the lower case version of the word
-    loweredWord = word.toLowerCase();
-    //loop through player things names
-    playerStorage.forEach((thing, index2) => {
-      // Get the lower case version of the thing name
-      loweredThing = thing.toLowerCase();
-      
-      // Check if the word is long enough and if it matches part of the thing name
-      if (loweredWord.length >= 4 && loweredThing.includes(loweredWord)) {
-        hasThing = true;
-        ind.push(index2);
+  wordsArr.forEach(word=>{
+    const loweredWord = word.toLowerCase();
+    playerStorage.forEach((thing, idx)=>{
+      const loweredThing = thing.toLowerCase();
+      if (loweredWord.length >= 4 && loweredThing.includes(loweredWord)){
+        hasThing = true; ind.push(idx);
+      } else if (loweredThing.startsWith(loweredWord) && loweredWord.length >= 3){
+        hasThing = true; ind.push(idx);
+      } else if (loweredThing.endsWith(loweredWord) && loweredWord.length >= 3){
+        hasThing = true; ind.push(idx);
       }
-      //Else Check if the word matches the prefix of the thing name
-      else if (loweredThing.startsWith(loweredWord) && loweredWord.length >= 3) {
-          hasThing = true;
-          ind.push(index2);
-        }
-      //Else Check if the word matches the suffix of the thing name
-      else if (loweredThing.endsWith(loweredWord) && loweredWord.length >= 3) {
-          hasThing = true;
-          ind.push(index2);
-        }
+    });
+  });
 
-    });//end of thing loop
-  });//end of input word loop
-  log("hasThing: " + hasThing);
-
-  //Continue if partial thing matched, which means storage has at least one thing that is mentioned in text
-  if (ind.length > 0) {
-    //From all thing matches, pick a random one to be the returned thing.
-    finalThingIndex = ind[Math.floor(Math.random() * ind.length)];
-
-    //Check for EXACT thing matches which overrides PARTIAL thing matches
-    textLower = text.toLowerCase();
-
-    //loop through player things
-    playerStorage.forEach((thing, index) => {
-      //Compare input text and player things for exact matches to override final index and flag full thing match.
-      if (textLower.includes(thing.toLowerCase())) {
-        finalThingIndex = index;
+  if (ind.length){
+    finalThingIndex = ind[Math.floor(Math.random()*ind.length)];
+    playerStorage.forEach((thing, idx)=>{
+      if (textLowerFull.includes(thing.toLowerCase())){
+        finalThingIndex = idx;
         hasFullThing = true;
       }
-    })
-    log("finalThingIndex: " + finalThingIndex);
+    });
   }
-
-  return [hasThing,hasFullThing,finalThingIndex];
+  return [hasThing, hasFullThing, finalThingIndex];
 }
 
 // --- New function for executing Psyker Spells ---
@@ -2852,195 +3268,12 @@ function executeSkill(text){
   return text; // no flavor/harness text appended
 }
 
-// After skill checks, this function detects if the player is performing a heal action and executes the healing process. Defaults to skill healing if both talent and skill healing are available.
-function detectTalentSkillHeal(){
-  // Player must pass at least one of the skill checks to perform a healing action
-  if(skillCheck[0]){
-    healingSelf = false;
 
-    //// Check if the player is performing a healing action. Use text b/c inp targetwords were simplified
-    healing = cleanStringCheckForTargets(healingActions,text);
-    log("healing: " + healing);
-
-    // Check if the player is attempting to heal themselves
-    healingSelf = cleanStringCheckForTargets(selfWords,text);
-    log("healingSelf: " + healingSelf);
-
-    // If both a healing action and self-healing are detected, proceed with healing based on skill level
-    if(healing && healingSelf){
-      getLvl = [];
-
-      // If the player has a skill that passed the check, push its level into the getLvl array
-      if(skillCheck[0]){
-        getLvl.push(state.playerSkills.lvl[skillCheck[2]]);
-      }
-      log("getLvl: " + getLvl);
-      
-      // If only one skill or talent passed, the array will contain one level value.
-      // Calculate healing amount based on the single level and heal the player.
-      if(getLvl.length == 1){
-        healAmt = getLvl[0] * 3;
-        log('healAmt: '+ healAmt);
-        statUp("hp",healAmt);
-        postActionText = postActionText + " You feel better as you recover some health 🩺."
-      }
-      
-    }
-
-
-  }
-}
 
 ///////////////////////////////
 
 //Check if player is first entering, then is entering into rest, and replenish their stats according to their rest intensity
-function detectResting(text){
-  startRest = false;
-  isEntering = false;
 
-  // Prevent resting actions during dialogue
-  if (isPlayerDialoguing(text)) return text;
-
-  // Check input for enter words and split the input
-  restingTextInput = [];
-  restingTextInput = findTargetsThenSplit(text, enterWords, restingTextInput, true);
-  console.log("restingTextInput simplified: " + restingTextInput);
-
-
-    //If input has enter words get their indices
-    if(restingTextInput != null){
-      allEnterWordsIndices = [];
-      allEnterWordsIndices = indicesOfTargets(restingTextInput,enterWords);
-      log("allEnterWordsIndices:" + allEnterWordsIndices);
-
-      //Detect if there is  you + enter or and + enter
-      if(allEnterWordsIndices != null){
-        isEntering = checkYouBeforeIndicesArr(restingTextInput,allEnterWordsIndices,3) || checkAndBeforeIndicesArr(restingTextInput,allEnterWordsIndices,2);
-        
-        startRest = cleanStringCheckForTargets(restingWords,text);
-        log("isEntering: "+ isEntering)
-        log("startRest: " + startRest);
-      }
-    }
-
-  if(isEntering && startRest){
-    //Replenish stats based on player rest intensity
-    lightRest = cleanStringCheckForTargets(lightRestWords,text);
-    moderateRest = cleanStringCheckForTargets(moderateRestWords,text);
-    fullRest = cleanStringCheckForTargets(fullRestWords,text);
-
-    if(fullRest){
-      statUp("hp", state.playerStats.maxHp * randomFloat(0.6,0.9));
-      statUp("ep",state.playerStats.maxEp * randomFloat(0.6,0.9));
-      statUp("cp",state.playerStats.maxCp * randomFloat(-0.6,-0.9));
-      text = text + " Your time resting leaves you feeling recovered."
-    }
-    else if(moderateRest){
-      statUp("hp", state.playerStats.maxHp * randomFloat(0.4,0.6));
-      statUp("ep",state.playerStats.maxEp * randomFloat(0.4,0.6));
-      statUp("cp",state.playerStats.maxCp * randomFloat(-0.4,-0.6));
-      text = text + " Your time resting leaves you feeling better than you were before."
-
-    }
-    else if(lightRest){
-      statUp("hp", state.playerStats.maxHp * randomFloat(0.2,0.4));
-      statUp("ep",state.playerStats.maxEp * randomFloat(0.2,0.4));
-      statUp("cp",state.playerStats.maxCp * randomFloat(-0.2,-0.4));
-      text = text + " Your time resting leaves you feeling a bit better."
-
-    }
-    else{
-      statUp("hp", state.playerStats.maxHp * randomFloat(0.2,0.4));
-      statUp("ep",state.playerStats.maxEp * randomFloat(0.2,0.4));
-      statUp("cp",state.playerStats.maxCp * randomFloat(-0.2,-0.4));
-      text = text + " Your time resting leaves you feeling more okay."
-
-    }
-    
-    storeStatsToSC();
-  }//end of startresting
-
-  return text;
-}
-
-//Detects when player consumes something which heals them.
-function detectConsuming(text){
-  startConsume = false;
-
-  // Prevent consuming actions during dialogue
-  if (isPlayerDialoguing(text)) return text;
-
-  // Check input for consume words and split the input
-  consumingTextInput = [];
-  consumingTextInput = findTargetsThenSplit(text, consumeWords, consumingTextInput, true);
-  console.log("consumingTextInput simplified: " + consumingTextInput);
-
-
-    //If input has consume words get their indices
-    if(consumingTextInput != null){
-      allConsumeWordsIndices = [];
-      allConsumeWordsIndices = indicesOfTargets(consumingTextInput,consumeWords);
-      log("allConsumeWordsIndices:" + allConsumeWordsIndices);
-
-      //Detect if there is  you + consume or and + consume
-      if(allConsumeWordsIndices != null){
-        startConsume = checkYouBeforeIndicesArr(consumingTextInput,allConsumeWordsIndices,3) || checkAndBeforeIndicesArr(consumingTextInput,allConsumeWordsIndices,2);
-        log("startConsume: " + startConsume);
-      }
-    }
-
-  if(startConsume){
-    //Verify intensity of player consumable
-    lightHeal = cleanStringCheckForTargets(lightHealWords,text);
-    moderateHeal = cleanStringCheckForTargets(moderateHealWords,text);
-    strongHeal = cleanStringCheckForTargets(strongHealWords,text);
-    greatHeal = cleanStringCheckForTargets(greatHealWords,text);
-    powerfulHeal = cleanStringCheckForTargets(powerfulHealWords,text);
-    log("healIntensity: " + [lightHeal,moderateHeal,strongHeal,greatHeal,powerfulHeal]);
-
-    if(powerfulHeal){
-      statUp("hp",100);
-      statUp("ep",120);
-      text = text + " You feel restored."
-    }
-    else if(greatHeal){
-      statUp("hp",50);
-      statUp("ep",80);
-      text = text + " You feel greatly better."
-
-    }
-    else if(strongHeal){
-      statUp("hp",30);
-      statUp("ep",40);
-      text = text + " You feel a lot better."
-
-    }
-    else if(moderateHeal){
-      statUp("hp",20);
-      statUp("ep",30);
-      text = text + " You feel moderately better."
-
-    } 
-    else if(lightHeal){
-      statUp("hp",10);
-      statUp("ep",10);
-      text = text + " You feel slightly better."
-    }
-    
-    if(!lightHeal && !moderateHeal && !strongHeal && !greatHeal && !powerfulHeal){
-      //default heal
-      statUp("hp",5);
-      statUp("ep",5)
-      text = text + " You feel a bit better."
-    }
-
-    storeStatsToSC();
-    return text
-
-  }//end of startconsume
-
-  return text;
-}
 
 // --- Consolidated Attack and Ranged Attack Logic ---
 
@@ -3067,10 +3300,10 @@ function detectCombatAction(text, actionWords, actionType) {
   if (!allActionWordIndices) return text;
 
   let actionsTriggered = 0;
-  let totalShots = 0;               // NEW
-  let weaponName = null;            // NEW
-  let weaponStats = null;           // NEW (mutated by executeAction)
-  let weaponBefore = null;          // NEW snapshot
+  let totalShots = 0;
+  let weaponName = null;
+  let weaponStats = null;
+  let weaponBefore = null;
 
   for (let idx of allActionWordIndices) {
     const youContext = checkYouBeforeIndicesArr(actionTextInput, [idx], 3);
@@ -3089,36 +3322,41 @@ function detectCombatAction(text, actionWords, actionType) {
         }
         state.equippedWeapon = weaponName;
         weaponStats = retrieveWeaponFromSC(weaponName) || { cond: 100, ammo: 50, maxCond: 100, maxAmmo: 50, burstFireMode: false, overchargeMode: false };
-        weaponBefore = { name: weaponName, ...weaponStats }; // snapshot BEFORE
+        weaponBefore = { name: weaponName, ...weaponStats };
       }
       for (let i = 0; i < repeatCount; i++) {
-        executeAction(actionType, weaponName, weaponStats); // resources/stat gains only
+        executeAction(actionType, weaponName, weaponStats);
         actionsTriggered++;
-        totalShots++; // count shots
+        totalShots++;
       }
+      text += " 🏹";
     } else {
       for (let i = 0; i < repeatCount; i++) {
-        executeAction(actionType); // resources/stat gains only
+        executeAction(actionType);
         actionsTriggered++;
       }
+      text += " ⚔️";
     }
   }
 
   if (actionsTriggered > 0) {
-    const stats = {
-      atk: state.playerStats.atk, ratk: state.playerStats.ratk, spd: state.playerStats.spd,
-      def: state.playerStats.def, lck: state.playerStats.lck, intl: state.playerStats.intl,
-      hp: state.playerStats.hp, maxHp: state.playerStats.maxHp,
-      ep: state.playerStats.ep, maxEp: state.playerStats.maxEp,
-      cp: state.playerStats.cp, maxCp: state.playerStats.maxCp
-    };
-    let weaponAfter = null;
-    if (actionType === 'ranged' && weaponName) {
-      // weaponStats is already post-action
-      weaponAfter = { name: weaponName, ...(weaponStats || retrieveWeaponFromSC(weaponName) || {}) };
-    }
-    return injectCombatPrompt(text, actionType, stats, weaponAfter, weaponBefore, totalShots);
+  const stats = {
+    atk: state.playerStats.atk, ratk: state.playerStats.ratk,
+    intl: state.playerStats.intl,
+    ep: state.playerStats.ep, maxEp: state.playerStats.maxEp,
+    cp: state.playerStats.cp, maxCp: state.playerStats.maxCp
+  };
+  let weaponAfter = null;
+  if (actionType === 'ranged' && weaponName) {
+    weaponAfter = { name: weaponName, ...(weaponStats || retrieveWeaponFromSC(weaponName) || {}) };
   }
+  const sys = buildCombatSystemPrompt(actionType, stats, weaponAfter);
+  state.pendingCombatSystem = state.pendingCombatSystem
+    ? state.pendingCombatSystem + "\n" + sys
+    : sys;
+
+  return text;
+}
 
   return text;
 }
@@ -3133,7 +3371,7 @@ function executeAction(actionType, weaponName, weaponStats) {
       return;
     }
     statUp("ep", epCost);
-    statUp("spd", randomFloat(0.01, 1));
+    // Removed SPD gain
     statUp("atk", randomFloat(0.01, 1));
     storeStatsToSC();
     return;
@@ -3158,7 +3396,7 @@ function executeAction(actionType, weaponName, weaponStats) {
   updateWeaponModes(weaponName, weaponStats);
   storeWeaponToSC(weaponName, weaponStats);
 
-  statUp("spd", randomFloat(0.01, 1));
+  // Removed SPD gain
   statUp("ratk", randomFloat(0.01, 1));
   storeStatsToSC();
 }
@@ -3186,75 +3424,269 @@ function resetGameOverState() {
  * @param {string} name - The skill or spell name.
  * @param {number} level - The skill or spell level.
  * @param {object} stats - Relevant stats (e.g., INTL, CP).
+ * @param {{name:string,qty:number}?} itemsUsed - Optional consumed item info.
  * @returns {string} - The new text with the SYSTEM prompt prepended.
  */
-function injectSkillUsePrompt(text, actionType, name, level, stats) {
+function injectSkillUsePrompt(text, actionType, name, level, stats, itemsUsed) {
   const desc = skillDescriptions[name.toLowerCase()] || "No description available.";
-  let prompt = `<SYSTEM>\n` +
-    `# The player is attempting to use the ${actionType} "${name}" at level ${level}.\n` +
-    `# Description: ${desc}\n` +
-    `# Skill level ranges from 1 (novice) to 100 (expert).\n` +
-    `# Player INTL: ${stats.intl}, CP: ${stats.cp}.\n` +
-    `# Narrate the outcome based on skill level, story context, and the skill's description. Skill attempts can fail, partially succeed, or succeed spectacularly.\n` +
-    `</SYSTEM>\n`;
-  return prompt + text;
+  let seg =
+`Skill Use
+${actionType.toUpperCase()}: ${name} (Lvl ${level})
+INTL:${stats.intl} CP:${stats.cp}${itemsUsed && itemsUsed.name ? `\nItem Used: ${itemsUsed.qty} x ${itemsUsed.name}` : ""}
+Desc: ${desc}
+Narrate outcome (can fail / partial / spectacular).`;
+  return seg + text; // segment only
 }
 
-
-function injectCombatPrompt(text, actionType, stats, weapon) {
-  const parts = [];
-  parts.push(`<SYSTEM>`);
-  parts.push(`# The player performs a ${actionType} action.`);
-  parts.push(`# Player Stats: ATK=${stats.atk}, RATK=${stats.ratk}, SPD=${stats.spd}, DEF=${stats.def}, LCK=${stats.lck}, INTL=${stats.intl}, HP=${stats.hp}/${stats.maxHp}, EP=${stats.ep}/${stats.maxEp}, CP=${stats.cp}/${stats.maxCp}.`);
-  if (weapon && weapon.name) {
-    parts.push(`# Weapon: "${weapon.name}" | AMMO=${weapon.ammo}/${weapon.maxAmmo} | COND=${weapon.cond}/${weapon.maxCond} | Modes: Burst=${weapon.burstFireMode ? "ON":"OFF"}, Overcharge=${weapon.overchargeMode ? "ON":"OFF"}.`);
+function getMinimalArmorSnapshot() {
+  const a = state.armor || {};
+  const r = (a.resist) || { directed:0, thermal:0, kinetic:0, psychic:0, sonic:0, other:0 };
+  const parts = [
+    `Armor Resist (Class): D:${r.directed} Th:${r.thermal} K:${r.kinetic} Psy:${r.psychic} So:${r.sonic} O:${r.other}`
+  ];
+  if (Array.isArray(a.damageLog) && a.damageLog.length) {
+    parts.push("Recent Armor Events:");
+    // show latest 2 (short) to keep tokens low
+    a.damageLog.slice(0,2).forEach(line=>{
+      // Trim to ~70 chars
+      parts.push("- " + line.slice(0,70));
+    });
   }
-  // NEW: make the timing explicit
-  parts.push(`# All numbers reflect the game state AFTER your action(s) have already been processed. Do NOT subtract ammo/energy again. If you mention remaining ammo, use the value shown.`); 
-  parts.push(`# Narrate only the outcome and visible consequences based on these numbers and current story context. Do not invent stats. Do not restate these instructions.`);
-  parts.push(`</SYSTEM>\n`);
-  return parts.join("\n") + text;
+  return parts.join("\n");
 }
+
+function buildCombatSystemPrompt(actionType, stats, weapon){
+  const armorSnap = getMinimalArmorSnapshot();
+  const weaponLine = (weapon && weapon.name)
+    ? `Weapon: ${weapon.name} AMMO:${weapon.ammo}/${weapon.maxAmmo}`
+    : `Weapon: (melee / unarmed)`;
+  // Compact example kept minimal for token safety
+  return `Combat Exchange
+${weaponLine}
+Player Stats ATK:${stats.atk} RATK:${stats.ratk} INTL:${stats.intl} EP:${stats.ep}/${stats.maxEp} CP:${stats.cp}/${stats.maxCp}
+${armorSnap}
+If enemy successfully impacts player armor/shield/body: emit ONE <!armorDmg> tag.
+If bodily injury occurs: optionally emit <!inj> tag.
+If healing received: optionally emit <!heal> tag.
+Example armor tag:
+<!armorDmg>type=kinetic;tier=moderate;weaponClass=4;resist=5;shieldBefore=25;shieldAfter=10;notes=glancing slug</armorDmg>`;
+}
+
+
+function getOrBuildACSProtocol(){
+  // Stable cached static rules to keep token usage predictable
+  const staticKey = "_acsProtocolStaticV2";
+  const marker = "#ACS-ArmorInjuryProtocol";
+  if (!state[staticKey] || state._acsForceProtocol){
+    state[staticKey] =
+`${marker}
+Unified Tag Rules (exact formatting required):
+Emit a tag ONLY if the player actually suffers EFFECT this reply.
+Never guess future damage. One <armorDmg> max. Injury/heal tags optional and independent.
+
+Classify armor impact:
+  Compare enemy weapon class vs current armor resist class (matching damage type).
+  Tier:
+    weaponClass >> resist  -> defeated
+    weaponClass == resist  -> exact
+    weaponClass < resist   -> moderate
+    weaponClass <<< resist -> none (heavy mitigation)
+Type mapping (normalize synonyms):
+  beam/laser/plasma/energy=directed
+  fire/heat/flame=thermal
+  bullet/slug/round/blade/slash/stab/knife/grenade/explosive/shrapnel/impact=kinetic
+  mind/psy/warp=psychic
+  scream/sonic/vibration/resonance=sonic
+  acid/corrosive/radiation/toxin/chemical/unknown=other
+
+Tags:
+  <!armorDmg>type=<type>;tier=<tier>;weaponClass=<n>;resist=<n>;[shieldBefore=<n>;shieldAfter=<n>;]notes=<2-5w></armorDmg>
+  <!inj>Short one-sentence injury effect</inj>
+  <!heal>Short one-sentence healing effect</heal>
+
+Rules:
+- Output NO tags if the player only attacks or all enemy attacks miss/are deflected with zero effect.
+- If shield absorbs all with zero structural effect you MAY omit armorDmg unless shield value changes (then include it with proper shieldBefore/After).
+- notes is terse: e.g. 'pauldron dented', 'shield flare', 'glancing scorch', 'breach.'
+- Keep total reply ≤ 200 tokens. Absolutely no meta commentary about tags.
+
+Do NOT output more than one <!armorDmg>. If multiple impacts occur, summarize strongest.
+`;
+    state._acsForceProtocol = false;
+  }
+  const snap = `Armor Snapshot:\n${getMinimalArmorSnapshot()}`;
+  return `${state[staticKey]}\n${snap}`;
+}
+
+function buildPickupSystemSegment(list){
+  if(!Array.isArray(list) || !list.length) return "";
+  const slice = list.slice(0,3); // safety cap
+  const itemsLine = slice.map(i=>i.raw).join(" | ");
+  return `Pickup Adjudication
+Attempted: ${itemsLine}
+For each actually secured item output ONE tag ONLY:
+<!pickup>item=<singular>;qty=<int>;secured=yes;reason=<2-4w></pickup>
+If failed (optional):
+<!pickup>item=<singular>;qty=<int>;secured=no;reason=<2-4w></pickup>
+Rules: max 3 tags total, no narration inside tags, no duplicates, no meta commentary.`;
+}
+
+// Modify unified system builder to include pending pickup segment
+function buildUnifiedSystemPrompt(baseText){
+  const segments = [];
+
+  // Pickup adjudication first
+  if (state.pendingPickupList && state.pendingPickupList.length){
+    const seg = buildPickupSystemSegment(state.pendingPickupList);
+    if (seg) segments.push(seg.trim());
+    state.pendingPickupList = [];
+  }
+  if (state.pendingSkillSystem){
+    segments.push(state.pendingSkillSystem.trim());
+    state.pendingSkillSystem = "";
+  }
+  if (state.pendingCombatSystem){
+    segments.push(state.pendingCombatSystem.trim());
+    state.pendingCombatSystem = "";
+  }
+  const protocol = getOrBuildACSProtocol();
+  if (protocol) segments.push(protocol.trim());
+
+  if (!segments.length) return baseText;
+  let sys = "<SYSTEM>\n" + segments.join("\n---\n") + "\n</SYSTEM>\n";
+
+  // --- STAGED COMPRESSION ---
+  // Rough token estimate: chars / 4
+  function estTokens(s){ return Math.ceil((s.length||0)/4); }
+  let tokens = estTokens(sys);
+
+  // Stage thresholds
+  const SOFT = 350;
+  const CRIT = 420;
+
+  if (tokens > SOFT){
+    // Stage 1: remove shield regen meta lines (re-derivable)
+    sys = sys
+      .replace(/Shield Regen Delay:[^\n]+\n?/gi,"")
+      .replace(/Shield Regen Rate:[^\n]+\n?/gi,"");
+    tokens = estTokens(sys);
+  }
+  if (tokens > SOFT){
+    // Stage 2: abbreviate resist labels
+    sys = sys
+      .replace(/Directed Energy:/gi,"Dir:")
+      .replace(/Thermal:/gi,"Thm:")
+      .replace(/Kinetic:/gi,"Kin:")
+      .replace(/Psychic:/gi,"Psy:")
+      .replace(/Sonic:/gi,"So:")
+      .replace(/Other:/gi,"Othr:");
+    tokens = estTokens(sys);
+  }
+  if (tokens > SOFT){
+    // Stage 3: collapse multi-line damage log to top 1
+    sys = sys.replace(/Damage Log:\s*([\s\S]*?)(?:\n-{2,}|<\/SYSTEM>)/i, (m, body)=>{
+      const firstLine = (body.split(/\n/).filter(l=>l.trim()).slice(0,1).join("\n")) || "";
+      return "Damage Log:\n" + firstLine + "\n";
+    });
+    tokens = estTokens(sys);
+  }
+  if (tokens > CRIT){
+    // Stage 4: strip examples and verbose commentary inside protocol (keep tag spec lines)
+    sys = sys.replace(/Example:[^\n]+\n?/gi,"")
+             .replace(/Weapon Class Guide:[\s\S]*?Tier:/i,"Tier:");
+    tokens = estTokens(sys);
+  }
+  if (tokens > CRIT){
+    // Stage 5: last resort – truncate tail
+    sys = sys.slice(0, 3000); // hard safety
+  }
+
+  return sys + baseText;
+}
+
 
 // ---- Injury Flag Protocol helpers ----
 // Note: INJURY_FLAG_REGEX is already defined above.
 // Example: const INJURY_FLAG_REGEX = /<<INJURY_FLAG\|([^>]+)>>/gi;
 
 function sanitizeInjuryTags(text) {
-  const openCount  = (text.match(/\[!inj\]/gi) || []).length;
-  const closeCount = (text.match(/\[!\/inj\]/gi) || []).length;
+  if (typeof text !== "string" || !text.length) return "";
 
-  // If there are more closes than opens, drop extra closes
+  const openTag  = /<!inj>/gi;
+  const closeTag = /<\/inj>/gi;
+
+  let openCount  = (text.match(openTag)  || []).length;
+  let closeCount = (text.match(closeTag) || []).length;
+
+  // If there are more closing tags, remove the extras in order
   if (closeCount > openCount) {
     let excess = closeCount - openCount;
-    text = text.replace(/\[!\/inj\]/gi, m => (excess-- > 0 ? "" : m));
+    text = text.replace(closeTag, m => (excess-- > 0 ? "" : m));
+    closeCount = openCount;
   }
 
-  // If there are more opens than closes, append missing closes at end
+  // If there are more opening tags, append needed closing tags at end
   if (openCount > closeCount) {
-    const missing = openCount - closeCount;
-    text += " " + "[!/inj]".repeat(missing);
+    text += " " + "</inj>".repeat(openCount - closeCount);
   }
+
+  // Remove completely empty injury blocks
+  text = text.replace(/<!inj>\s*<\/inj>/gi, "");
+
   return text;
 }
-
 
 
 /**
  * Ask the model to append machine-readable flags AFTER its story
  * whenever the player ("you") is harmed or about to be harmed.
  */
-function injectInjuryFlagProtocol(text) {
-  const marker = "Injury Flag Protocol";
-  if (text && text.indexOf(marker) !== -1) return text;
-  const sys = `<SYSTEM>
-# Injury/Healing Flags (append at end)
-# If the player was injured: <!inj>brief summary</inj>
-# If the player was healed/treated: <!heal>brief summary</heal>
-# Use one or both. One short sentence each. Do not tag individual lines.
-</SYSTEM>
-`;
-  return sys + text;
+function injectACSFlagProtocol(text){
+  const marker = "# ACS-Minimal-OneTurn";
+  const hasMarker = text && text.indexOf(marker) !== -1;
+  const malformed = /<!\/armorDmg>/i.test(text || "");
+  const missingProper = hasMarker && !/<\/armorDmg>/i.test(text || "");
+  const need = !hasMarker || malformed || missingProper || state._acsForceProtocol;
+  if (!need) {
+    log("[ACS Protocol] Existing block OK.");
+    return text;
+  }
+  const aSnap = getMinimalArmorSnapshot();
+  const sys =
+`<SYSTEM>
+${marker}
+Armor Snapshot:
+${aSnap}
+Weapon/Armor Logic (single turn):
+- Classify enemy weapon only if it impacts armor/shield this turn.
+Type Map:
+ beam/laser/plasma/energy=directed
+ fire/heat/flame=thermal
+ bullet/slug/round/blade/slash/stab/knife/grenade/explosive/shrapnel/impact=kinetic
+ mind/psy/warp=psychic
+ scream/sonic/vibration/resonance=sonic
+ acid/corrosive/radiation/toxin/chemical/unknown=other
+Weapon Class Guide:
+ 1-2 light sidearm / improvised
+ 3-4 standard small arms
+ 5-6 heavy rifle / sniper / heavy plasma / shaped charge
+ 7-8 anti-armor / heavy explosive / focused warp burst
+ 9-10 catastrophic / ordnance / overwhelming relic
+Tier Mapping:
+ weaponClass << resist => none
+ weaponClass <  resist => moderate
+ weaponClass == resist => exact
+ weaponClass >  resist => defeated
+Tags (ONLY if player armor/shield/body is affected THIS response):
+ <!armorDmg>type=<type>;tier=<tier>;weaponClass=<n>;resist=<n>;[shieldBefore=<n>;shieldAfter=<n>;]notes=<2-5 words></armorDmg>
+ <!inj>A short one sentence summary of the player injury and its effects</inj>
+ <!heal>A short one sentence summary of healing actions that affected the player</heal>
+If no effect on player: NO tags.
+Keep reply <= 200 tokens. Do not explain tags.
+</SYSTEM>`;
+  log(`[ACS Protocol] Injecting fresh block (force=${!!state._acsForceProtocol} malformed=${malformed} missingProper=${missingProper})`);
+  state._acsForceProtocol = false;
+  return sys + (text || "");
 }
 
 /** Ensure the Player Injuries SC exists and prepend a note to its description. */
@@ -3276,7 +3708,7 @@ function consumeInjuryFlags(text) {
   let had = false, injCount = 0, healCount = 0, m;
   let injuries = [], heals = [];
 
-  // Note: sanitizeInjuryTags only handles [!inj] forms; safe to call but not needed for angle tags
+  // Note: sanitizeInjuryTags only handles <!inj> forms; safe to call but not needed for angle tags
   text = sanitizeInjuryTags(text);
 
   INJURY_FLAG_REGEX.lastIndex = 0;
@@ -3327,6 +3759,8 @@ function getSkillType(skill) {
 // --- Contextual Skill/Spell Activation ---
 
 function detectContextualSkillsAndSpells(text) {
+  // Prevent skill activation during dialogue
+  if (isPlayerDialoguing(text)) return null;
   const actionVerbs = [
     "cast", "use", "activate", "attempt", "try", "channel", "focus", "unleash", "perform", "do", "trigger", "invoke", "wield", "apply", "execute", "direct", "guide", "stabilize", "repair", "hack", "heal"
   ];
@@ -3423,25 +3857,57 @@ function detectContextualSkillsAndSpells(text) {
  * Returns the modified text.
  */
 function runContextualActivation(text, choice) {
+  // Prevent skill activation during dialogue
+  if (isPlayerDialoguing(text)) return text;
   if (!choice) return text;
+
+  // Only trigger if player context is present near the skill/spell name
+  let triggerText = text;
+  let triggerIdx = -1;
+  let triggerLen = 0;
+  if (choice.kind === "spell") {
+    const spellName = state.psykerSpells.name[choice.index];
+    triggerIdx = triggerText.toLowerCase().indexOf(spellName.toLowerCase());
+    triggerLen = spellName.length;
+  } else if (choice.kind === "skill") {
+    const skillName = state.playerSkills.name[choice.index];
+    triggerIdx = triggerText.toLowerCase().indexOf(skillName.toLowerCase());
+    triggerLen = skillName.length;
+  }
+  if (triggerIdx === -1 || !isPlayerContext(triggerText, triggerIdx, triggerLen, 10)) {
+    return text; // Skip activation if not player context
+  }
 
   if (choice.kind === "spell") {
     const spellName = state.psykerSpells.name[choice.index];
     const spellLevel = state.psykerSpells.lvl[choice.index];
     const stats = { intl: state.playerStats.intl, cp: state.playerStats.cp };
-    text = injectSkillUsePrompt(text, "spell", spellName, spellLevel, stats);
+
+    // Spells: unchanged (no item auto-consume). If desired later, call extractAndConsumeItemForSkill here too.
+    state.pendingSkillSystem = injectSkillUsePrompt("", "spell", spellName, spellLevel, stats);
+    state.contextualActivated = true; // marks as activated
     text = executePsykerSpell(choice.index, text);
+    text += " ✨";
+    log(`[SkillTrigger] Spell used: ${spellName} (Lvl ${spellLevel}) | INTL: ${stats.intl}, CP: ${stats.cp}`);
     return text;
   } else if (choice.kind === "skill") {
     const skillName = state.playerSkills.name[choice.index];
     const skillLevel = state.playerSkills.lvl[choice.index];
     const stats = { intl: state.playerStats.intl, cp: state.playerStats.cp };
-    text = injectSkillUsePrompt(text, "skill", skillName, skillLevel, stats);
-    // Patch: pass and return text
+
+    // NEW: detect and consume an inventory item mentioned in the input
+    const itemsUsed = extractAndConsumeItemForSkill(text);
+
+    // Include item in SYSTEM prompt if one was used
+    state.pendingSkillSystem = injectSkillUsePrompt("", "skill", skillName, skillLevel, stats, itemsUsed);
+    state.contextualActivated = true; // marks as activated
     skillIndex = choice.index;
     fullSkillMatch = true;
     skillCheck = [true, true, skillIndex];
+
     text = executeSkill(text);
+    text += " 🛠️";
+    log(`[SkillTrigger] Skill used: ${skillName} (Lvl ${skillLevel}) | INTL: ${stats.intl}, CP: ${stats.cp}${itemsUsed ? ` | item: ${itemsUsed.qty} x ${itemsUsed.name}` : ""}`);
     return text;
   }
   return text;
